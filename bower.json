@@ -1,5 +1,5 @@
 {
-  "name": "basis-templates",
-  "version": "0.0.0",
-  "main": "./basis-templates.js"
+  "main": "./basis-templates.js", 
+  "version": "1.2.1", 
+  "name": "basis-templates"
 }
