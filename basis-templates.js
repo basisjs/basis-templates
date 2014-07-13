@@ -76,6 +76,7 @@ var __resources__ = {
     var TEXT_VALUE = basis.template.TEXT_VALUE;
     var COMMENT_VALUE = basis.template.COMMENT_VALUE;
     var eventAttr = /^event-(.+)+/;
+    var basisTemplateIdMarker = "basisTemplateId_" + basis.genUID();
     var tmplEventListeners = {};
     var templates = {};
     var namespaceURI = {
@@ -144,7 +145,7 @@ var __resources__ = {
             if (relTarget && (cursor === relTarget || cursor.contains(relTarget))) cursor = null;
           }
           while (cursor) {
-            refId = cursor.basisTemplateId;
+            refId = cursor[basisTemplateIdMarker];
             if (typeof refId == "number") {
               if (tmplRef = resolveInstanceById(refId)) break;
             }
@@ -153,7 +154,16 @@ var __resources__ = {
           if (tmplRef && tmplRef.action) {
             var actions = attr.trim().split(/\s+/);
             event.actionTarget = actionTarget;
-            for (var i = 0, actionName; actionName = actions[i++]; ) tmplRef.action.call(tmplRef.context, actionName, event);
+            for (var i = 0, actionName; actionName = actions[i++]; ) switch (actionName) {
+              case "prevent-default":
+                event.preventDefault();
+                break;
+              case "stop-propagation":
+                event.stopPropagation();
+                break;
+              default:
+                tmplRef.action.call(tmplRef.context, actionName, event);
+            }
           }
         }
         if (event.type in afterEventAction) afterEventAction[event.type](event, attrCursor);
@@ -235,6 +245,7 @@ var __resources__ = {
             break;
         }
       }
+      if (!parent && tokens.length == 1) result = result.firstChild;
       return result;
     };
     function resolveTemplateById(refId) {
@@ -405,9 +416,28 @@ var __resources__ = {
         return value;
       }
       function createBindingUpdater(names, getters) {
-        return function bindingUpdater(object) {
-          for (var i = 0, bindingName; bindingName = names[i]; i++) this(bindingName, getters[bindingName](object));
-        };
+        var name1 = names[0];
+        var name2 = names[1];
+        var getter1 = getters[name1];
+        var getter2 = getters[name2];
+        switch (names.length) {
+          case 1:
+            return function bindingUpdater1(object) {
+              this(name1, getter1(object));
+            };
+          case 2:
+            return function bindingUpdater2(object) {
+              this(name1, getter1(object));
+              this(name2, getter2(object));
+            };
+          default:
+            var getters_ = names.map(function(name) {
+              return getters[name];
+            });
+            return function bindingUpdaterN(object) {
+              for (var i = 0; i < names.length; i++) this(names[i], getters_[i](object));
+            };
+        }
       }
       function makeHandler(events, getters) {
         for (var name in events) events[name] = createBindingUpdater(events[name], getters);
@@ -464,16 +494,13 @@ var __resources__ = {
         createBindingFunction: createBindingFunction
       };
       return function(tokens) {
-        var fn = getFunctions(tokens, true, this.source.url, tokens.source_, !CLONE_NORMALIZATION_TEXT_BUG);
+        var fn = getFunctions(tokens, true, this.source.url, tokens.source_, !CLONE_NORMALIZATION_TEXT_BUG, basisTemplateIdMarker);
         var createInstance;
         var instances = {};
         var l10nMap = {};
         var l10nLinks = [];
         var seed = 0;
         var proto = buildHtml(tokens);
-        var build = function() {
-          return proto.cloneNode(true);
-        };
         var id = this.templateId;
         templates[id] = {
           template: this,
@@ -496,7 +523,7 @@ var __resources__ = {
             link = null;
           }
         }
-        createInstance = fn.createInstance(id, instances, build, tools, l10nMap, CLONE_NORMALIZATION_TEXT_BUG);
+        createInstance = fn.createInstance(id, instances, proto, tools, l10nMap, CLONE_NORMALIZATION_TEXT_BUG);
         return {
           createInstance: function(obj, onAction, onRebuild, bindings, bindingInterface) {
             var instanceId = seed++;
@@ -527,7 +554,6 @@ var __resources__ = {
             }
             if (templates[id] && templates[id].instances === instances) delete templates[id];
             fn = null;
-            build = null;
             proto = null;
             l10nMap = null;
             l10nLinks = null;
@@ -551,6 +577,7 @@ var __resources__ = {
       templateClass: HtmlTemplate
     });
     module.exports = {
+      marker: basisTemplateIdMarker,
       Template: HtmlTemplate,
       TemplateSwitcher: HtmlTemplateSwitcher
     };
@@ -627,9 +654,11 @@ var __resources__ = {
       init: function(event) {
         event = wrap(event);
         for (var name in event) if (name != "returnValue" && name != "keyLocation" && name != "layerX" && name != "layerY") if (typeof event[name] != "function" && name in this == false) this[name] = event[name];
+        var target = sender(event);
         basis.object.extend(this, {
           event_: event,
-          sender: sender(event),
+          sender: target,
+          target: target,
           key: key(event),
           charCode: charCode(event),
           mouseLeft: mouseButton(event, MOUSE_LEFT),
@@ -911,13 +940,17 @@ var __resources__ = {
     var tokenIndex = [];
     var tokenComputeFn = {};
     var tokenComputes = {};
+    var updateToken = basis.Token.prototype.set;
     var ComputeToken = Class(basis.Token, {
       className: namespace + ".ComputeToken",
       init: function(value, token) {
         token.computeTokens[this.basisObjectId] = this;
         this.token = token;
-        this.get = token.computeGetMethod;
         basis.Token.prototype.init.call(this, value);
+      },
+      get: function() {
+        var key = this.token.type == "plural" ? cultures[currentCulture].plural(this.value) : this.value;
+        return this.token.dictionary.getValue(this.token.name + "." + key);
       },
       toString: function() {
         return this.get();
@@ -946,25 +979,12 @@ var __resources__ = {
       toString: function() {
         return this.get();
       },
-      computeGetMethod: function() {},
       apply: function() {
-        var values = {};
-        var tokens = this.computeTokens;
-        var get = this.type == "plural" ? function() {
-          return values[cultures[currentCulture].plural(this.value)];
-        } : function() {
-          return values[this.value];
-        };
-        this.computeGetMethod = get;
-        if (this.type == "plural" && Array.isArray(this.value) || this.type == "default" && typeof this.value == "object") values = basis.object.slice(this.value, ownKeys(this.value));
-        for (var key in tokens) {
-          var computeToken = tokens[key];
-          var curValue = computeToken.get();
-          var newValue = get.call(computeToken);
-          computeToken.get = get;
-          if (curValue !== newValue) computeToken.apply();
-        }
+        for (var key in this.computeTokens) this.computeTokens[key].apply();
         basis.Token.prototype.apply.call(this);
+      },
+      set: function() {
+        basis.dev.warn("basis.l10n: Value for l10n token can't be set directly, but through dictionary update only");
       },
       setType: function(type) {
         if (type != "plural" && (!basis.l10n.enableMarkup || type != "markup")) type = "default";
@@ -981,12 +1001,12 @@ var __resources__ = {
         getter = basis.getter(getter);
         events = String(events).trim().split(/\s+|\s*,\s*/).sort();
         var tokenId = this.basisObjectId;
-        var enumId = events.concat(tokenId, getter.basisGetterId_).join("_");
+        var enumId = events.concat(tokenId, getter[basis.getter.ID]).join("_");
         if (tokenComputeFn[enumId]) return tokenComputeFn[enumId];
         var token = this;
         var objectTokenMap = {};
         var updateValue = function(object) {
-          this.set(getter(object));
+          updateToken.call(this, getter(object));
         };
         var handler = {
           destroy: function(object) {
@@ -1080,7 +1100,7 @@ var __resources__ = {
         return this;
       },
       syncValues: function() {
-        for (var tokenName in this.tokens) this.tokens[tokenName].set(this.getValue(tokenName));
+        for (var tokenName in this.tokens) updateToken.call(this.tokens[tokenName], this.getValue(tokenName));
       },
       getValue: function(tokenName) {
         var fallback = cultureFallback[currentCulture] || [];
@@ -1445,8 +1465,10 @@ var __resources__ = {
     var REFERENCE = /([a-z_][a-z0-9_]*)(\||\}\s*)/ig;
     var ATTRIBUTE_VALUE = /"((?:(\\")|[^"])*?)"\s*/g;
     var BREAK_TAG_PARSE = /^/g;
+    var SINGLETON_TAG = /^(area|base|br|col|command|embed|hr|img|input|link|meta|param|source)$/i;
     var TAG_IGNORE_CONTENT = {
-      text: /((?:.|[\r\n])*?)(?:<\/b:text>|$)/g
+      text: /((?:.|[\r\n])*?)(?:<\/b:text>|$)/g,
+      style: /((?:.|[\r\n])*?)(?:<\/b:style>|$)/g
     };
     var quoteUnescape = /\\"/g;
     var tokenize = function(source) {
@@ -1564,9 +1586,14 @@ var __resources__ = {
             }
             if (m[3]) {
               parseTag = false;
-              if (m[3] == "/>") lastTag = tagStack.pop(); else if (lastTag.prefix == "b" && lastTag.name in TAG_IGNORE_CONTENT) {
-                state = TAG_IGNORE_CONTENT[lastTag.name];
-                break;
+              if (m[3] == "/>" || !lastTag.prefix && SINGLETON_TAG.test(lastTag.name)) {
+                if (m[3] != "/>") result.warns.push("Tag <" + lastTag.name + "> doesn't closed explicit (use `/>` as tag ending)");
+                lastTag = tagStack.pop();
+              } else {
+                if (lastTag.prefix == "b" && lastTag.name in TAG_IGNORE_CONTENT) {
+                  state = TAG_IGNORE_CONTENT[lastTag.name];
+                  break;
+                }
               }
               state = TEXT;
               break;
@@ -1612,6 +1639,7 @@ var __resources__ = {
             state = ATTRIBUTE_NAME_OR_END;
             break;
           case TAG_IGNORE_CONTENT.text:
+          case TAG_IGNORE_CONTENT.style:
             lastTag.childs.push({
               type: TYPE_TEXT,
               value: m[1]
@@ -1663,18 +1691,79 @@ var __resources__ = {
       if (!template) template = tokenTemplate[id] = new Template(new L10nProxyToken(token));
       return template;
     }
+    function genIsolateMarker() {
+      return "i" + basis.genUID() + "__";
+    }
+    function isolateCss(css, prefix) {
+      function addMatch(prefix) {
+        if (i > lastMatchPos) {
+          result.push((prefix || "") + css.substring(lastMatchPos, i));
+          lastMatchPos = i;
+        }
+      }
+      var result = [];
+      var sym = css.split("");
+      var len = sym.length;
+      var lastMatchPos = 0;
+      var blockScope = false;
+      var strSym;
+      if (!prefix) prefix = genIsolateMarker();
+      for (var i = 0; i < len; i++) {
+        switch (sym[i]) {
+          case "'":
+          case '"':
+            strSym = sym[i];
+            while (++i < len) {
+              if (sym[i] == "\\") i++; else if (sym[i] == strSym) {
+                i++;
+                break;
+              }
+            }
+            break;
+          case "/":
+            if (sym[i + 1] == "*") {
+              i++;
+              while (++i < len) if (sym[i] == "*" && sym[i + 1] == "/") {
+                i += 2;
+                break;
+              }
+            }
+            break;
+          case "{":
+            blockScope = true;
+            break;
+          case "}":
+            blockScope = false;
+            break;
+          case ".":
+            if (!blockScope) {
+              i++;
+              addMatch();
+              while (++i < len) if (!/[a-z0-9\-\_]/.test(sym[i])) {
+                addMatch(prefix);
+                i -= 1;
+                break;
+              }
+            }
+            break;
+        }
+      }
+      addMatch();
+      return result.join("");
+    }
     var makeDeclaration = function() {
       var IDENT = /^[a-z_][a-z0-9_\-]*$/i;
       var CLASS_ATTR_PARTS = /(\S+)/g;
-      var CLASS_ATTR_BINDING = /^([a-z_][a-z0-9_\-]*)?\{((anim:)?[a-z_][a-z0-9_\-]*)\}$/i;
+      var CLASS_ATTR_BINDING = /^((?:[a-z_][a-z0-9_\-]*)?(?::(?:[a-z_][a-z0-9_\-]*)?)?)\{((anim:)?[a-z_][a-z0-9_\-]*)\}$/i;
       var STYLE_ATTR_PARTS = /\s*[^:]+?\s*:(?:\(.*?\)|".*?"|'.*?'|[^;]+?)+(?:;|$)/gi;
       var STYLE_PROPERTY = /\s*([^:]+?)\s*:((?:\(.*?\)|".*?"|'.*?'|[^;]+?)+);?$/i;
       var STYLE_ATTR_BINDING = /\{([a-z_][a-z0-9_]*)\}/i;
       var ATTR_BINDING = /\{([a-z_][a-z0-9_]*|l10n:[a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)*(?:\.\{[a-z_][a-z0-9_]*\})?)\}/i;
       var NAMED_CHARACTER_REF = /&([a-z]+|#[0-9]+|#x[0-9a-f]{1,4});?/gi;
-      var tokenMap = basis.NODE_ENV ? node_require("./template/htmlentity.json") : {};
+      var tokenMap = basis.NODE_ENV ? __nodejsRequire("./template/htmlentity.json") : {};
       var tokenElement = !basis.NODE_ENV ? document.createElement("div") : null;
       var includeStack = [];
+      var styleNamespaceIsolate = {};
       function name(token) {
         return (token.prefix ? token.prefix + ":" : "") + token.name;
       }
@@ -1699,24 +1788,24 @@ var __resources__ = {
         if (!array || !array.length) return 0;
         return array;
       }
-      function processAttr(name, value) {
-        function buildExpression(parts) {
-          var bindName;
-          var names = [];
-          var expression = [];
-          var map = {};
-          for (var j = 0; j < parts.length; j++) if (j % 2) {
-            bindName = parts[j];
-            if (!map[bindName]) {
-              map[bindName] = names.length;
-              names.push(bindName);
-            }
-            expression.push(map[bindName]);
-          } else {
-            if (parts[j]) expression.push(untoken(parts[j]));
+      function buildAttrExpression(parts) {
+        var bindName;
+        var names = [];
+        var expression = [];
+        var map = {};
+        for (var j = 0; j < parts.length; j++) if (j % 2) {
+          bindName = parts[j];
+          if (!map[bindName]) {
+            map[bindName] = names.length;
+            names.push(bindName);
           }
-          return [ names, expression ];
+          expression.push(map[bindName]);
+        } else {
+          if (parts[j]) expression.push(untoken(parts[j]));
         }
+        return [ names, expression ];
+      }
+      function processAttr(name, value) {
         var bindings = 0;
         var parts;
         var m;
@@ -1742,7 +1831,7 @@ var __resources__ = {
                   var value = m[2].trim();
                   var valueParts = value.split(STYLE_ATTR_BINDING);
                   if (valueParts.length > 1) {
-                    var expr = buildExpression(valueParts);
+                    var expr = buildAttrExpression(valueParts);
                     expr.push(propertyName);
                     bindings.push(expr);
                   } else props.push(propertyName + ": " + untoken(value));
@@ -1755,7 +1844,7 @@ var __resources__ = {
               break;
             default:
               parts = value.split(ATTR_BINDING);
-              if (parts.length > 1) bindings = buildExpression(parts); else value = untoken(value);
+              if (parts.length > 1) bindings = buildAttrExpression(parts); else value = untoken(value);
           }
         }
         if (bindings && !bindings.length) bindings = 0;
@@ -1768,6 +1857,8 @@ var __resources__ = {
       function attrs(token, declToken, optimizeSize) {
         var attrs = token.attrs;
         var result = [];
+        var styleAttr;
+        var display;
         var m;
         for (var i = 0, attr; attr = attrs[i]; i++) {
           if (attr.prefix == "b") {
@@ -1775,6 +1866,10 @@ var __resources__ = {
               case "ref":
                 var refs = (attr.value || "").trim().split(/\s+/);
                 for (var j = 0; j < refs.length; j++) addTokenRef(declToken, refs[j]);
+                break;
+              case "show":
+              case "hide":
+                display = attr;
                 break;
             }
             continue;
@@ -1787,7 +1882,22 @@ var __resources__ = {
           var item = [ parsed.type, parsed.binding, refList(attr) ];
           if (parsed.type == 2) item.push(name(attr));
           if (parsed.value && (!optimizeSize || !parsed.binding || parsed.type != 2)) item.push(parsed.value);
+          if (parsed.type == TYPE_ATTRIBUTE_STYLE) styleAttr = item;
           result.push(item);
+        }
+        if (display) {
+          if (!styleAttr) {
+            styleAttr = [ TYPE_ATTRIBUTE_STYLE, 0, 0 ];
+            result.push(styleAttr);
+          }
+          if (!styleAttr[1]) styleAttr[1] = [];
+          var displayExpr = buildAttrExpression((display.value || display.name).split(ATTR_BINDING));
+          if (displayExpr[0].length - displayExpr[1].length) {
+            styleAttr[3] = (styleAttr[3] ? styleAttr[3] + "; " : "") + (display.name == "show" ^ display.value === "" ? "" : "display: none");
+          } else {
+            if (display.name == "show") styleAttr[3] = (styleAttr[3] ? styleAttr[3] + "; " : "") + "display: none";
+            styleAttr[1].push(displayExpr.concat("display", display.name));
+          }
         }
         return result.length ? result : 0;
       }
@@ -1815,7 +1925,23 @@ var __resources__ = {
       function addUnique(array, items) {
         for (var i = 0; i < items.length; i++) arrayAdd(array, items[i]);
       }
-      function process(tokens, template, options) {
+      function addStyles(array, items, prefix) {
+        for (var i = 0, item; item = items[i]; i++) if (item[1] !== styleNamespaceIsolate) item[1] = prefix + item[1];
+        array.unshift.apply(array, items);
+      }
+      function addStyle(template, token, src, isolatePrefix) {
+        var url;
+        if (src) {
+          if (!/^(\.\/|\.\.|\/)/.test(src)) basis.dev.warn("Bad usage: <b:" + token.name + ' src="' + src + '"/>.\nFilenames should starts with `./`, `..` or `/`. Otherwise it will treats as special reference in next minor release.');
+          url = path.resolve(template.baseURI + src);
+        } else {
+          var text = token.childs[0];
+          url = basis.resource.virtual("css", text ? text.value : "", template.sourceUrl).url;
+        }
+        template.resources.push([ url, isolatePrefix ]);
+        return url;
+      }
+      function process(tokens, template, options, context) {
         function modifyAttr(token, name, action) {
           var attrs = tokenAttrs(token);
           if (name) attrs.name = name;
@@ -1923,13 +2049,17 @@ var __resources__ = {
               if (token.prefix == "b") {
                 var elAttrs = tokenAttrs(token);
                 switch (token.name) {
-                  case "resource":
                   case "style":
-                    if (token.name == "resource") basis.dev.warn("<b:resource> is deprecated and will be removed in next minor release. Use <b:style> instead." + (template.sourceUrl ? " File: " + template.sourceUrl : ""));
-                    if (elAttrs.src) {
-                      if (!/^(\.\/|\.\.|\/)/.test(elAttrs.src)) basis.dev.warn("Bad usage: <b:" + token.name + ' src="' + elAttrs.src + '"/>.\nFilenames should starts with `./`, `..` or `/`. Otherwise it will treats as special reference in next minor release.');
-                      template.resources.push(path.resolve(template.baseURI + elAttrs.src));
+                    var styleNamespace = elAttrs.namespace || elAttrs.ns;
+                    var styleIsolate = styleNamespace ? styleNamespaceIsolate : context && context.isolate || "";
+                    var src = addStyle(template, token, elAttrs.src, styleIsolate);
+                    if (styleNamespace) {
+                      if (src in styleNamespaceIsolate == false) styleNamespaceIsolate[src] = genIsolateMarker();
+                      template.styleNSPrefix[styleNamespace] = styleNamespaceIsolate[src];
                     }
+                    break;
+                  case "isolate":
+                    if (!template.isolate) template.isolate = elAttrs.prefix || options.isolate || genIsolateMarker(); else basis.dev.warn("<b:isolate> is set already to `" + template.isolate + "`");
                     break;
                   case "l10n":
                     if (template.l10nResolved) template.warns.push("<b:l10n> must be declared before any `l10n:` token (instruction ignored)");
@@ -1964,9 +2094,16 @@ var __resources__ = {
                     var templateSrc = elAttrs.src;
                     if (templateSrc) {
                       var isTemplateRef = /^#\d+$/.test(templateSrc);
+                      var isDocumentIdRef = /^id:/.test(templateSrc);
                       var url = isTemplateRef ? templateSrc.substr(1) : templateSrc;
                       var resource;
-                      if (isTemplateRef) resource = templateList[url]; else if (/^[a-z0-9\.]+$/i.test(url) && !/\.tmpl$/.test(url)) resource = getSourceByPath(url); else {
+                      if (isTemplateRef) {
+                        resource = templateList[url];
+                      } else if (isDocumentIdRef) {
+                        resource = resolveSourceByDocumentId(url.substr(3));
+                      } else if (/^[a-z0-9\.]+$/i.test(url) && !/\.tmpl$/.test(url)) {
+                        resource = getSourceByPath(url);
+                      } else {
                         if (!/^(\.\/|\.\.|\/)/.test(url)) basis.dev.warn('Bad usage: <b:include src="' + url + '"/>.\nFilenames should starts with `./`, `..` or `/`. Otherwise it will treats as special reference in next minor release.');
                         resource = basis.resource(path.resolve(template.baseURI + url));
                       }
@@ -1976,21 +2113,21 @@ var __resources__ = {
                         continue;
                       }
                       if (includeStack.indexOf(resource) == -1) {
+                        var isolatePrefix = "isolate" in elAttrs ? elAttrs.isolate || genIsolateMarker() : "";
                         var decl;
-                        arrayAdd(template.deps, resource);
-                        includeStack.push(resource);
+                        if (!isDocumentIdRef) arrayAdd(template.deps, resource);
                         if (isTemplateRef) {
                           if (resource.source.bindingBridge) arrayAdd(template.deps, resource.source);
                           decl = getDeclFromSource(resource.source, resource.baseURI, true, options);
                         } else {
                           decl = getDeclFromSource(resource, resource.url ? path.dirname(resource.url) + "/" : "", true, options);
                         }
-                        includeStack.pop();
-                        if (decl.resources && "no-style" in elAttrs == false) addUnique(template.resources, decl.resources);
+                        if (decl.resources && "no-style" in elAttrs == false) addStyles(template.resources, decl.resources, isolatePrefix);
                         if (decl.deps) addUnique(template.deps, decl.deps);
                         if (decl.l10n) addUnique(template.l10n, decl.l10n);
                         var tokenRefMap = normalizeRefs(decl.tokens);
                         var instructions = (token.childs || []).slice();
+                        var styleNSPrefixMap = basis.object.slice(decl.styleNSPrefix);
                         if (elAttrs["class"]) instructions.push({
                           type: TYPE_ELEMENT,
                           prefix: "b",
@@ -2021,6 +2158,16 @@ var __resources__ = {
                         for (var j = 0, child; child = instructions[j]; j++) {
                           if (child.type == TYPE_ELEMENT && child.prefix == "b") {
                             switch (child.name) {
+                              case "style":
+                                var childAttrs = tokenAttrs(child);
+                                var styleNamespace = childAttrs.namespace || childAttrs.ns;
+                                var styleIsolate = styleNamespace ? styleNamespaceIsolate : isolatePrefix;
+                                var src = addStyle(template, child, childAttrs.src, styleIsolate);
+                                if (styleNamespace) {
+                                  if (src in styleNamespaceIsolate == false) styleNamespaceIsolate[src] = genIsolateMarker();
+                                  styleNSPrefixMap[styleNamespace] = styleNamespaceIsolate[src];
+                                }
+                                break;
                               case "replace":
                               case "remove":
                               case "before":
@@ -2089,6 +2236,8 @@ var __resources__ = {
                           } else decl.tokens.push.apply(decl.tokens, process([ child ], template, options) || []);
                         }
                         if (tokenRefMap.element) removeTokenRef(tokenRefMap.element.token, "element");
+                        basis.object.complete(template.styleNSPrefix, styleNSPrefixMap);
+                        if (isolatePrefix) isolateTokens(decl.tokens, isolatePrefix); else if (decl.isolate && !template.isolate) template.isolate = options.isolate || genIsolateMarker();
                         result.push.apply(result, decl.tokens);
                       } else {
                         var stack = includeStack.slice(includeStack.indexOf(resource) || 0).concat(resource).map(function(res) {
@@ -2097,7 +2246,7 @@ var __resources__ = {
                           return res.url || "[inline template]";
                         });
                         template.warns.push("Recursion: ", stack.join(" -> "));
-                        basis.dev.warn("Recursion in template " + (template.sourceUrl || "[inline template]") + ": ", stack.join(" -> "));
+                        basis.dev.warn("Recursion in template: ", stack.join(" -> "));
                       }
                     }
                     break;
@@ -2190,10 +2339,11 @@ var __resources__ = {
       function applyDefines(tokens, template, options, stIdx) {
         var unpredictable = 0;
         for (var i = stIdx || 0, token; token = tokens[i]; i++) {
-          if (token[TOKEN_TYPE] == TYPE_ELEMENT) unpredictable += applyDefines(token, template, options, ELEMENT_ATTRS);
-          if (token[TOKEN_TYPE] == TYPE_ATTRIBUTE_CLASS || token[TOKEN_TYPE] == TYPE_ATTRIBUTE && token[ATTR_NAME] == "class") {
+          var tokenType = token[TOKEN_TYPE];
+          if (tokenType == TYPE_ELEMENT) unpredictable += applyDefines(token, template, options, ELEMENT_ATTRS);
+          if (tokenType == TYPE_ATTRIBUTE_CLASS || tokenType == TYPE_ATTRIBUTE && token[ATTR_NAME] == "class") {
             var bindings = token[TOKEN_BINDINGS];
-            var valueIdx = ATTR_VALUE - (token[TOKEN_TYPE] == TYPE_ATTRIBUTE_CLASS);
+            var valueIdx = ATTR_VALUE_INDEX[tokenType];
             if (bindings) {
               var newAttrValue = (token[valueIdx] || "").trim().split(" ");
               for (var k = 0, bind; bind = bindings[k]; k++) {
@@ -2218,7 +2368,30 @@ var __resources__ = {
         }
         return unpredictable;
       }
-      return function makeDeclaration(source, baseURI, options, sourceUrl) {
+      function isolateTokens(tokens, isolate, template, stIdx) {
+        function processName(name) {
+          var parts = name.split(":");
+          if (parts.length == 1) return isolate + parts[0];
+          if (!template) return name;
+          if (!parts[0]) return parts[1];
+          if (parts[0] in template.styleNSPrefix == false) {
+            template.warns.push("Namespace `" + parts[0] + "` is not defined in template, no prefix added");
+            return name;
+          }
+          return template.styleNSPrefix[parts[0]] + parts[1];
+        }
+        for (var i = stIdx || 0, token; token = tokens[i]; i++) {
+          var tokenType = token[TOKEN_TYPE];
+          if (tokenType == TYPE_ELEMENT) isolateTokens(token, isolate, template, ELEMENT_ATTRS);
+          if (tokenType == TYPE_ATTRIBUTE_CLASS || tokenType == TYPE_ATTRIBUTE && token[ATTR_NAME] == "class") {
+            var bindings = token[TOKEN_BINDINGS];
+            var valueIndex = ATTR_VALUE_INDEX[tokenType];
+            if (token[valueIndex]) token[valueIndex] = token[valueIndex].split(/\s+/).map(processName).join(" ");
+            if (bindings) for (var k = 0, bind; bind = bindings[k]; k++) bind[0] = processName(bind[0]);
+          }
+        }
+      }
+      return function makeDeclaration(source, baseURI, options, sourceUrl, sourceOrigin) {
         options = options || {};
         var warns = [];
         var source_;
@@ -2227,11 +2400,13 @@ var __resources__ = {
           baseURI: baseURI || "",
           tokens: null,
           resources: [],
+          styleNSPrefix: {},
           deps: [],
           l10n: [],
           defines: {},
           unpredictable: true,
-          warns: warns
+          warns: warns,
+          isolate: false
         };
         result.dictURI = sourceUrl ? basis.path.resolve(sourceUrl) : baseURI || "";
         if (result.dictURI) {
@@ -2241,15 +2416,42 @@ var __resources__ = {
         if (!source.templateTokens) {
           source_ = source;
           source = tokenize(String(source));
-        } else {
-          if (source.warns) warns.push.apply(warns, source.warns);
         }
+        if (source.warns) warns.push.apply(warns, source.warns);
+        if (sourceOrigin) includeStack.push(sourceOrigin);
         result.tokens = process(source, result, options);
+        if (sourceOrigin) includeStack.pop();
         if (!result.tokens) result.tokens = [ [ 3, 0, 0, "" ] ];
         if (source_) result.tokens.source_ = source_;
         addTokenRef(result.tokens[0], "element");
         normalizeRefs(result.tokens, result.dictURI);
         result.unpredictable = !!applyDefines(result.tokens, result, options);
+        if (/^[^a-z]/i.test(result.isolate)) basis.dev.error("basis.template: isolation prefix `" + result.isolate + "` should not starts with symbol other than letter, otherwise it leads to incorrect css class names and broken styles");
+        if (includeStack.length == 0) {
+          isolateTokens(result.tokens, result.isolate || "", result);
+          if (result.isolate) for (var i = 0, item; item = result.resources[i]; i++) if (item[1] !== styleNamespaceIsolate) item[1] = result.isolate + item[1];
+          result.resources = result.resources.filter(function(item, idx, array) {
+            return !basis.array.search(array, String(item), String, idx + 1);
+          }).map(function(item) {
+            var url = item[0];
+            var isolate = item[1];
+            if (isolate === styleNamespaceIsolate) isolate = styleNamespaceIsolate[url];
+            if (!isolate) return url;
+            var resource = basis.resource.virtual("css", "").ready(function(cssResource) {
+              sourceResource();
+              basis.object.extend(cssResource, {
+                url: url + "?isolate-prefix=" + isolate,
+                baseURI: basis.path.dirname(url) + "/"
+              });
+            });
+            var sourceResource = basis.resource(url).ready(function(cssResource) {
+              var cssText = isolateCss(cssResource.cssText || "", isolate);
+              if (typeof btoa == "function") cssText += "\n/*# sourceMappingURL=data:application/json;base64," + btoa('{"version":3,"sources":["' + basis.path.origin + url + '"],' + '"mappings":"AAAA' + basis.string.repeat(";AACA", cssText.split("\n").length) + '"}') + " */";
+              resource.update(cssText);
+            });
+            return resource.url;
+          });
+        }
         for (var key in result.defines) if (!result.defines[key].used) warns.push("Unused define for " + key);
         delete result.defines;
         delete result.l10nResolved;
@@ -2257,14 +2459,13 @@ var __resources__ = {
         return result;
       };
     }();
-    var usableResources = {
-      ".css": true
-    };
     function startUseResource(uri) {
-      if (usableResources[path.extname(uri)]) basis.resource(uri)().startUse();
+      var resource = basis.resource(uri).fetch();
+      if (typeof resource.startUse == "function") resource.startUse();
     }
     function stopUseResource(uri) {
-      if (usableResources[path.extname(uri)]) basis.resource(uri)().stopUse();
+      var resource = basis.resource(uri).fetch();
+      if (typeof resource.stopUse == "function") resource.stopUse();
     }
     function templateSourceUpdate() {
       if (this.destroyBuilder) buildTemplate.call(this);
@@ -2297,7 +2498,7 @@ var __resources__ = {
       } else {
         if (typeof result != "object" || !Array.isArray(result.tokens)) result = String(result);
       }
-      if (typeof result == "string") result = makeDeclaration(result, baseURI, options, sourceUrl);
+      if (typeof result == "string") result = makeDeclaration(result, baseURI, options, sourceUrl, source);
       return result;
     }
     function l10nHandler(value) {
@@ -2306,7 +2507,9 @@ var __resources__ = {
       }
     }
     function buildTemplate() {
-      var decl = getDeclFromSource(this.source, this.baseURI);
+      var decl = getDeclFromSource(this.source, this.baseURI, false, {
+        isolate: this.getIsolatePrefix()
+      });
       var destroyBuilder = this.destroyBuilder;
       var funcs = this.builder(decl.tokens, this);
       var deps = this.deps_;
@@ -2349,20 +2552,25 @@ var __resources__ = {
       this.resources = declResources;
       if (destroyBuilder) destroyBuilder(true);
     }
-    function sourceById(sourceId) {
-      var host = document.getElementById(sourceId);
-      if (host && host.tagName == "SCRIPT") {
-        if (host.type == "text/basis-template") return host.textContent || host.text;
-        basis.dev.warn("Template script element with wrong type", host.type);
-        return "";
-      }
-      basis.dev.warn("Template script element with id `" + sourceId + "` not found");
-      return "";
+    var sourceByDocumentIdResolvers = {};
+    function getTemplateByDocumentId(id) {
+      var resolver = resolveSourceByDocumentId(id);
+      if (resolver.template) return resolver.template;
+      var host = document.getElementById(id);
+      var source = "";
+      if (host && host.tagName == "SCRIPT" && host.type == "text/basis-template") source = host.textContent || host.text; else if (!host) basis.dev.warn("Template script element with id `" + id + "` not found"); else basis.dev.warn('Template should be declared in <script type="text/basis-template"> element (id `' + sourceId + "`)");
+      return resolver.template = new Template(source);
     }
-    function resolveSourceById(sourceId) {
-      return function() {
-        return sourceById(sourceId);
-      };
+    function resolveSourceByDocumentId(sourceId) {
+      var resolver = sourceByDocumentIdResolvers[sourceId];
+      if (!resolver) {
+        resolver = sourceByDocumentIdResolvers[sourceId] = function() {
+          return getTemplateByDocumentId(sourceId).source;
+        };
+        resolver.id = sourceId;
+        resolver.url = '<script id="' + sourceId + '"/>';
+      }
+      return resolver;
     }
     var Template = Class(null, {
       className: namespace + ".Template",
@@ -2400,6 +2608,9 @@ var __resources__ = {
         return this.createInstance(object, actionCallback, updateCallback, bindings, bindingInterface);
       },
       clearInstance: function(tmpl) {},
+      getIsolatePrefix: function() {
+        return "i" + this.templateId + "__";
+      },
       getBinding: function(bindings) {
         buildTemplate.call(this);
         return this.getBinding(bindings);
@@ -2417,7 +2628,7 @@ var __resources__ = {
                   source = basis.resource(source);
                   break;
                 case "id":
-                  source = resolveSourceById(source);
+                  source = resolveSourceByDocumentId(source);
                   break;
                 case "tokens":
                   source = basis.string.toObject(source);
@@ -2695,7 +2906,7 @@ var __resources__ = {
         }
       });
       themes[name].fallback = extendFallback(name, []);
-      sourceList.push(themes["base"].sources);
+      sourceList.push(themes.base.sources);
       return themeInterface;
     }
     var themes = {};
@@ -2746,6 +2957,7 @@ var __resources__ = {
       SourceWrapper: SourceWrapper,
       switcher: switcher,
       tokenize: tokenize,
+      isolateCss: isolateCss,
       getDeclFromSource: getDeclFromSource,
       makeDeclaration: makeDeclaration,
       getL10nTemplate: getL10nTemplate,
@@ -2793,6 +3005,7 @@ var __resources__ = {
       var bindingList;
       var markedElementList;
       var rootPath;
+      var attrExprId;
       function putRefs(refs, pathIdx) {
         for (var i = 0, refName; refName = refs[i]; i++) if (refName.indexOf(":") == -1) refList.push(refName + ":" + pathIdx);
       }
@@ -2805,7 +3018,7 @@ var __resources__ = {
       function putBinding(binding) {
         bindingList.push(binding);
       }
-      function processTokens(tokens, path, noTextBug) {
+      function processTokens(tokens, path, noTextBug, templateMarker) {
         var localPath;
         var refs;
         var myRef;
@@ -2833,7 +3046,7 @@ var __resources__ = {
           }
           if (token[TOKEN_TYPE] == TYPE_ELEMENT) {
             myRef = -1;
-            if (path == rootPath) markedElementList.push(localPath + ".basisTemplateId");
+            if (path == rootPath) markedElementList.push(localPath + "." + templateMarker);
             if (!explicitRef) {
               localPath = putPath(localPath);
               myRef = pathList.length;
@@ -2855,10 +3068,14 @@ var __resources__ = {
                     for (var k = 0, binding; binding = bindings[k]; k++) putBinding([ 2, localPath, binding[1], attrName, binding[0] ].concat(binding.slice(2)));
                     break;
                   case "style":
-                    for (var k = 0, property; property = bindings[k]; k++) for (var m = 0, bindName; bindName = property[0][m]; m++) putBinding([ 2, localPath, bindName, attrName, property[0], property[1], property[2] ]);
+                    for (var k = 0, property; property = bindings[k]; k++) {
+                      attrExprId++;
+                      for (var m = 0, bindName; bindName = property[0][m]; m++) putBinding([ 2, localPath, bindName, attrName, property[0], property[1], property[2], property[3], attrExprId ]);
+                    }
                     break;
                   default:
-                    for (var k = 0, bindName; bindName = bindings[0][k]; k++) putBinding([ 2, localPath, bindName, attrName, bindings[0], bindings[1], token[ELEMENT_NAME] ]);
+                    attrExprId++;
+                    for (var k = 0, bindName; bindName = bindings[0][k]; k++) putBinding([ 2, localPath, bindName, attrName, bindings[0], bindings[1], token[ELEMENT_NAME], attrExprId ]);
                 }
               }
             }
@@ -2867,13 +3084,14 @@ var __resources__ = {
           }
         }
       }
-      return function(tokens, path, noTextBug) {
+      return function(tokens, path, noTextBug, templateMarker) {
         pathList = [];
         refList = [];
         bindingList = [];
         markedElementList = [];
         rootPath = path || "_";
-        processTokens(tokens, rootPath, noTextBug);
+        attrExprId = 0;
+        processTokens(tokens, rootPath, noTextBug, templateMarker);
         return {
           path: pathList,
           ref: refList,
@@ -2887,7 +3105,8 @@ var __resources__ = {
       var SPECIAL_ATTR_MAP = {
         disabled: "*",
         checked: [ "input" ],
-        value: [ "input", "textarea" ],
+        indeterminate: [ "input" ],
+        value: [ "input", "textarea", "select" ],
         minlength: [ "input" ],
         maxlength: [ "input" ],
         readonly: [ "input" ],
@@ -2899,7 +3118,8 @@ var __resources__ = {
         checked: true,
         selected: true,
         readonly: true,
-        multiple: true
+        multiple: true,
+        indeterminate: true
       };
       var bindFunctions = {
         1: "bind_element",
@@ -2946,16 +3166,18 @@ var __resources__ = {
         var l10nCompute = [];
         var l10nBindings = {};
         var l10nBindSeed = 1;
+        var specialAttr;
+        var attrExprId;
+        var attrExprMap = {};
+        var debugList = [];
         var toolsUsed = {
           resolve: true
         };
-        var specialAttr;
-        var debugList = [];
         for (var i = 0, binding; binding = bindings[i]; i++) {
           var bindType = binding[0];
           var domRef = binding[1];
           var bindName = binding[2];
-          if ([ "set", "templateId_" ].indexOf(bindName) != -1) {
+          if ([ "get", "set", "templateId_" ].indexOf(bindName) != -1) {
             basis.dev.warn("binding name `" + bindName + "` is prohibited, binding ignored");
             continue;
           }
@@ -3044,7 +3266,6 @@ var __resources__ = {
             }
           } else {
             var attrName = binding[ATTR_NAME];
-            debugList.push("{" + [ 'binding:"' + bindName + '"', "dom:" + domRef, 'attr:"' + attrName + '"', "val:" + bindVar, 'attachment:instance.attaches&&instance.attaches["' + bindName + '"]&&instance.attaches["' + bindName + '"].value' ] + "}");
             switch (attrName) {
               case "class":
                 var defaultExpr = "";
@@ -3083,15 +3304,28 @@ var __resources__ = {
                 putBindCode("bind_attrClass", domRef, bindVar, valueExpr, '"' + prefix + '"', anim);
                 break;
               case "style":
-                varList.push(bindVar + '=""');
-                putBindCode("bind_attrStyle", domRef, '"' + binding[6] + '"', bindVar, buildAttrExpression(binding, false, l10nBindings));
+                var expr = buildAttrExpression(binding, false, l10nBindings);
+                attrExprId = binding[8];
+                if (!attrExprMap[attrExprId]) {
+                  attrExprMap[attrExprId] = bindVar;
+                  varList.push(bindVar + "=" + (binding[7] == "hide" ? '""' : '"none"'));
+                }
+                if (binding[7]) expr = expr.replace(/\+""$/, "") + (binding[7] == "hide" ? '?"none":""' : '?"":"none"');
+                bindVar = attrExprMap[attrExprId];
+                putBindCode("bind_attrStyle", domRef, '"' + binding[6] + '"', bindVar, expr);
                 break;
               default:
                 specialAttr = SPECIAL_ATTR_MAP[attrName];
-                varList.push(bindVar + "=" + buildAttrExpression(binding, "l10n", l10nBindings));
+                attrExprId = binding[7];
+                if (!attrExprMap[attrExprId]) {
+                  varList.push(bindVar + "=" + buildAttrExpression(binding, "l10n", l10nBindings));
+                  attrExprMap[attrExprId] = bindVar;
+                }
+                bindVar = attrExprMap[attrExprId];
                 putBindCode("bind_attr", domRef, '"' + attrName + '"', bindVar, specialAttr && SPECIAL_ATTR_SINGLE[attrName] ? buildAttrExpression(binding, "bool", l10nBindings) + '?"' + attrName + '":""' : buildAttrExpression(binding, false, l10nBindings));
                 if (specialAttr && (specialAttr == "*" || specialAttr.indexOf(binding[6].toLowerCase()) != -1)) bindCode.push("if(" + domRef + "." + attrName + "!=" + bindVar + ")" + domRef + "." + attrName + "=" + (SPECIAL_ATTR_SINGLE[attrName] ? "!!" + bindVar : bindVar) + ";");
             }
+            debugList.push("{" + [ 'binding:"' + bindName + '"', "dom:" + domRef, 'attr:"' + attrName + '"', "val:" + bindVar, 'attachment:instance.attaches&&instance.attaches["' + bindName + '"]&&instance.attaches["' + bindName + '"].value' ] + "}");
           }
         }
         result.push(";function set(bindName,value){" + 'if(typeof bindName!="string")');
@@ -3127,10 +3361,10 @@ var __resources__ = {
         basis.dev.error("Can't build template function: " + e + "\n", "function(" + args + "){\n" + body + "\n}");
       }
     }
-    var getFunctions = function(tokens, debug, uri, source, noTextBug) {
+    var getFunctions = function(tokens, debug, uri, source, noTextBug, templateMarker) {
       var fn = tmplFunctions[uri && basis.path.relative(uri)];
       if (fn) return fn;
-      var paths = buildPathes(tokens, "_", noTextBug);
+      var paths = buildPathes(tokens, "_", noTextBug, templateMarker);
       var bindings = buildBindings(paths.binding);
       var objectRefs = paths.markedElementList.join("=");
       var createInstance;
@@ -3139,17 +3373,18 @@ var __resources__ = {
         keys: bindings.keys,
         l10nKeys: basis.object.keys(bindings.l10n)
       };
+      if (tokens.length == 1) paths.path[0] = "a=_";
       if (!uri) uri = basis.path.baseURI + "inline_template" + inlineSeed++ + ".tmpl";
       if (bindings.l10n) {
         var code = [];
         for (var key in bindings.l10n) code.push('case"' + key + '":' + 'if(value==null)value="{' + key + '}";' + "__l10n[token]=value;" + bindings.l10n[key].join("") + "break;");
         result.createL10nSync = compileFunction([ "_", "__l10n", "bind_attr", "TEXT_BUG" ], (source ? "\n// " + source.split(/\r\n?|\n\r?/).join("\n// ") + "\n\n" : "") + "var " + paths.path + ";" + "return function(token, value){" + "switch(token){" + code.join("") + "}" + "}" + "\n\n//# sourceURL=" + basis.path.origin + uri + "_l10n");
       }
-      result.createInstance = compileFunction([ "tid", "map", "build", "tools", "__l10n", "TEXT_BUG" ], (source ? "\n// " + source.split(/\r\n?|\n\r?/).join("\n// ") + "\n\n" : "") + "var getBindings=tools.createBindingFunction([" + bindings.keys.map(function(key) {
+      result.createInstance = compileFunction([ "tid", "map", "proto", "tools", "__l10n", "TEXT_BUG" ], (source ? "\n// " + source.split(/\r\n?|\n\r?/).join("\n// ") + "\n\n" : "") + "var getBindings=tools.createBindingFunction([" + bindings.keys.map(function(key) {
         return '"' + key + '"';
       }) + "])," + (bindings.tools.length ? bindings.tools + "," : "") + "Attaches=function(){};" + "Attaches.prototype={" + bindings.keys.map(function(key) {
         return key + ":null";
-      }) + "};" + "return function createInstance_(id,obj,onAction,onRebuild,bindings,bindingInterface){" + "var _=build()," + paths.path.concat(bindings.vars) + "," + "instance={" + "context:obj," + "action:onAction," + "rebuild:onRebuild," + (debug ? "debug:function debug(){return[" + bindings.debugList + "]}," : "") + "handler:null," + "bindings:bindings," + "bindingInterface:bindingInterface," + "attaches:null," + "tmpl:{" + [ paths.ref, "templateId_:id", "set:set" ] + "}" + "}" + (objectRefs ? ";if(obj||onAction)" + objectRefs + "=(id<<12)|tid" : "") + bindings.set + ";instance.handler=bindings?getBindings(bindings,obj,set,bindingInterface):null" + ";" + bindings.l10nCompute + ";return instance" + "}" + "\n\n//# sourceURL=" + basis.path.origin + uri);
+      }) + "};" + "return function createInstance_(id,obj,onAction,onRebuild,bindings,bindingInterface){" + "var _=proto.cloneNode(true)," + paths.path.concat(bindings.vars) + "," + "instance={" + "context:obj," + "action:onAction," + "rebuild:onRebuild," + (debug ? "debug:function debug(){return[" + bindings.debugList + "]}," : "") + "handler:null," + "bindings:bindings," + "bindingInterface:bindingInterface," + "attaches:null," + "tmpl:{" + [ paths.ref, "templateId_:id", "set:set" ] + "}" + "}" + (objectRefs ? ";if(obj||onAction)" + objectRefs + "=(id<<12)|tid" : "") + bindings.set + ";if(bindings)instance.handler=getBindings(bindings,obj,set,bindingInterface)" + ";" + bindings.l10nCompute + ";return instance" + "}" + "\n\n//# sourceURL=" + basis.path.origin + uri);
       return result;
     };
     module.exports = {
@@ -3158,11 +3393,20 @@ var __resources__ = {
   }
 };
 
-(function(global) {
+(function createBasisInstance(global, __basisFilename, __config) {
   "use strict";
-  var VERSION = "1.2.1";
+  var VERSION = "1.3.0";
   var document = global.document;
-  var Object_toString = Object.prototype.toString;
+  var toString = Object.prototype.toString;
+  function genUID(len) {
+    function base36(val) {
+      return parseInt(Number(val), 10).toString(36);
+    }
+    var result = (global.performance ? base36(global.performance.now()) : "") + base36(new Date);
+    if (!len) len = 16;
+    while (result.length < len) result = base36(1e12 * Math.random()) + result;
+    return result.substr(result.length - len, len);
+  }
   function extend(dest, source) {
     for (var key in source) dest[key] = source[key];
     return dest;
@@ -3241,6 +3485,7 @@ var __resources__ = {
   }
   function $undef() {}
   var getter = function() {
+    var ID = "basisGetterId" + genUID() + "_";
     var modificatorSeed = 1;
     var simplePath = /^[a-z$_][a-z$_0-9]*(\.[a-z$_][a-z$_0-9]*)*$/i;
     var getterMap = [];
@@ -3285,13 +3530,13 @@ var __resources__ = {
       }
       return new Function("object", "return object != null ? object." + path + " : object");
     }
-    return function(path, modificator) {
+    var getterFn = function(path, modificator) {
       var func;
       var result;
       var getterId;
       if (!path || path === nullGetter) return nullGetter;
       if (typeof path == "function") {
-        getterId = path.basisGetterId_;
+        getterId = path[ID];
         if (getterId) {
           func = getterMap[Math.abs(getterId) - 1];
         } else {
@@ -3301,19 +3546,19 @@ var __resources__ = {
           func.base = path;
           func.__extend__ = getter;
           getterId = getterMap.push(func);
-          path.basisGetterId_ = -getterId;
-          func.basisGetterId_ = getterId;
+          path[ID] = -getterId;
+          func[ID] = getterId;
         }
       } else {
         func = pathCache[path];
         if (func) {
-          getterId = func.basisGetterId_;
+          getterId = func[ID];
         } else {
           func = buildFunction(path);
           func.base = path;
           func.__extend__ = getter;
           getterId = getterMap.push(func);
-          func.basisGetterId_ = getterId;
+          func[ID] = getterId;
           pathCache[path] = func;
         }
       }
@@ -3330,7 +3575,7 @@ var __resources__ = {
       switch (modType) {
         case "string":
           result = function(object) {
-            return String_extensions.format(modificator, func(object));
+            return stringFunctions.format(modificator, func(object));
           };
           break;
         case "function":
@@ -3356,10 +3601,12 @@ var __resources__ = {
         }
         modList[modId] = result;
         result.mod = modificator;
-        result.basisGetterId_ = getterMap.push(result);
+        result[ID] = getterMap.push(result);
       } else {}
       return result;
     };
+    getterFn.ID = ID;
+    return getterFn;
   }();
   var nullGetter = extend(function() {}, {
     __extend__: getter
@@ -3427,9 +3674,13 @@ var __resources__ = {
     var runTask = function() {
       var taskById = {};
       var taskId = 1;
-      setImmediate = function() {
+      setImmediate = function(fn) {
+        if (typeof fn != "function") {
+          consoleMethods.warn("basis.setImmediate() and basis.nextTick() accept functions only (call ignored)");
+          return;
+        }
         taskById[++taskId] = {
-          fn: arguments[0],
+          fn: fn,
           args: arrayFrom(arguments, 1)
         };
         addToQueue(taskId);
@@ -3441,15 +3692,8 @@ var __resources__ = {
       return function(id) {
         var task = taskById[id];
         if (task) {
-          try {
-            if (typeof task.fn == "function") task.fn.apply(undefined, task.args); else {
-              (global.execScript || function(fn) {
-                global["eval"].call(global, fn);
-              })(String(task.fn));
-            }
-          } finally {
-            delete taskById[id];
-          }
+          delete taskById[id];
+          return task.fn.apply(undefined, task.args);
         }
       };
     }();
@@ -3508,10 +3752,10 @@ var __resources__ = {
                   addToQueue = function(taskId) {
                     var scriptEl = createScript();
                     scriptEl.onreadystatechange = function() {
-                      runTask(taskId);
                       scriptEl.onreadystatechange = null;
                       documentInterface.remove(scriptEl);
                       scriptEl = null;
+                      runTask(taskId);
                     };
                     documentInterface.head.add(scriptEl);
                   };
@@ -3524,17 +3768,17 @@ var __resources__ = {
       }
     }
   })();
-  var NODE_ENV = typeof process == "object" && Object_toString.call(process) == "[object process]";
+  var NODE_ENV = typeof process == "object" && toString.call(process) == "[object process]";
   var pathUtils = function() {
     var ABSOLUTE_RX = /^([^\/]+:|\/)/;
     var PROTOCOL_RX = /^[a-zA-Z0-9\-]+:\/?/;
     var ORIGIN_RX = /^(?:[a-zA-Z0-9\-]+:)?\/\/[^\/]+\/?/;
     var SEARCH_HASH_RX = /[\?#].*$/;
-    var utils = {};
-    var origin = "";
     var baseURI;
+    var origin;
+    var utils;
     if (NODE_ENV) {
-      var path = require("path").resolve(".").replace(/\\/g, "/");
+      var path = (process.basisjsBaseURI || require("path").resolve(".")).replace(/\\/g, "/");
       baseURI = path.replace(/^[^\/]*/, "");
       origin = path.replace(/\/.*/, "");
     } else {
@@ -3602,14 +3846,88 @@ var __resources__ = {
     };
     return utils;
   }();
-  var basisFilename = "";
-  var config = {
-    path: {
-      basis: ""
-    },
+  var basisFilename = __basisFilename || "";
+  var config = __config || {
     noConflict: true,
-    autoload: "./0.js"
+    modules: {},
+    autoload: [ "./0.js" ]
   };
+  function fetchConfig() {
+    var config = __config;
+    if (!config) {
+      if (NODE_ENV) {
+        basisFilename = __filename.replace(/\\/g, "/");
+      } else {
+        var scripts = document.scripts;
+        for (var i = 0, scriptEl; scriptEl = scripts[i]; i++) {
+          var configAttrValue = scriptEl.hasAttribute("basis-config") ? scriptEl.getAttribute("basis-config") : scriptEl.getAttribute("data-basis-config");
+          scriptEl.removeAttribute("basis-config");
+          scriptEl.removeAttribute("data-basis-config");
+          if (configAttrValue !== null) {
+            basisFilename = pathUtils.normalize(scriptEl.src);
+            try {
+              config = Function("return{" + configAttrValue + "}")();
+            } catch (e) {
+              consoleMethods.error("basis-config: basis.js config parse fault: " + e);
+            }
+            break;
+          }
+        }
+      }
+    }
+    return processConfig(config);
+  }
+  function processConfig(config, verbose) {
+    config = slice(config);
+    if ("extProto" in config) consoleMethods.warn("basis-config: `extProto` option in basis-config is not support anymore");
+    if ("path" in config) consoleMethods.warn("basis-config: `path` option in basis-config is deprecated, use `modules` instead");
+    var autoload = [];
+    var modules = merge(config.path, config.modules, {
+      basis: basisFilename
+    });
+    config.modules = {};
+    if (config.autoload) {
+      var m = String(config.autoload).match(/^((?:[^\/]*\/)*)([a-z$_][a-z0-9$_]*)((?:\.[a-z$_][a-z0-9$_]*)*)$/i);
+      if (m) {
+        modules[m[2]] = {
+          autoload: true,
+          filename: m[1] + m[2] + (m[3] || ".js")
+        };
+      } else {
+        consoleMethods.warn("basis-config: wrong `autoload` value (setting ignored): " + config.autoload);
+      }
+      delete config.autoload;
+    }
+    for (var name in modules) {
+      var module = modules[name];
+      if (typeof module == "string") module = {
+        filename: module.replace(/\/$/, "/" + name + ".js")
+      };
+      var filename = module.filename;
+      var path = module.path;
+      if (path) path = pathUtils.resolve(path);
+      if (filename) filename = pathUtils.resolve(filename);
+      if (filename && !path) {
+        path = filename.substr(0, filename.length - pathUtils.extname(filename).length);
+        filename = "../" + pathUtils.basename(filename);
+      }
+      if (!filename && path) {
+        filename = pathUtils.basename(path);
+        path = pathUtils.dirname(path);
+      }
+      if (!pathUtils.extname(filename)) filename += ".js";
+      filename = pathUtils.resolve(path, filename);
+      config.modules[name] = {
+        path: path,
+        filename: filename
+      };
+      if (module.autoload) {
+        config.autoload = autoload;
+        autoload.push(name);
+      }
+    }
+    return config;
+  }
   var Class = function() {
     var instanceSeed = {
       id: 1
@@ -3625,7 +3943,7 @@ var __resources__ = {
       while (cursor && cursor !== superClass) cursor = cursor.superClass_;
       return cursor === superClass;
     }
-    function dev_verboseNameWrap(name, args, fn) {
+    function devVerboseName(name, args, fn) {
       return (new Function(keys(args), 'return {"' + name + '": ' + fn + '\n}["' + name + '"]')).apply(null, values(args));
     }
     var TOSTRING_BUG = function() {
@@ -3641,7 +3959,7 @@ var __resources__ = {
       for (var i = 1, extension; extension = arguments[i]; i++) if (typeof extension != "function" && extension.className) className = extension.className;
       if (!className) className = SuperClass.className + "._Class" + classId;
       var NewClassProto = function() {};
-      NewClassProto = dev_verboseNameWrap(className, {}, NewClassProto);
+      NewClassProto = devVerboseName(className, {}, NewClassProto);
       NewClassProto.prototype = SuperClass.prototype;
       var newProto = new NewClassProto;
       var newClassProps = {
@@ -3675,7 +3993,7 @@ var __resources__ = {
         this.init.apply(this, arguments);
         this.postInit();
       };
-      newClass = dev_verboseNameWrap(className, {
+      newClass = devVerboseName(className, {
         instanceSeed: instanceSeed
       }, newClass);
       newProto.constructor = newClass;
@@ -3686,7 +4004,7 @@ var __resources__ = {
     }
     function extendClass(source) {
       var proto = this.prototype;
-      if (typeof source == "function" && !isClass(source)) source = source(this.superClass_.prototype);
+      if (typeof source == "function" && !isClass(source)) source = source(this.superClass_.prototype, slice(proto));
       if (source.prototype) source = source.prototype;
       for (var key in source) {
         var value = source[key];
@@ -3697,7 +4015,7 @@ var __resources__ = {
           }
         }
       }
-      if (TOSTRING_BUG && source[key = "toString"] !== Object_toString) proto[key] = source[key];
+      if (TOSTRING_BUG && source[key = "toString"] !== toString) proto[key] = source[key];
       return this;
     }
     var BaseClass = extend(createClass, {
@@ -3723,7 +4041,7 @@ var __resources__ = {
           if (!extension) return extension;
           if (extension && extension.__extend__) return extension;
           var Base = function() {};
-          Base = dev_verboseNameWrap(devName || "customExtendProperty", {}, Base);
+          Base = devVerboseName(devName || "customExtendProperty", {}, Base);
           Base.prototype = this;
           var result = new Base;
           fn(result, extension);
@@ -3749,7 +4067,7 @@ var __resources__ = {
         };
         if (keys) {
           if (keys.__extend__) return keys;
-          var Cls = dev_verboseNameWrap("oneFunctionProperty", {}, function() {});
+          var Cls = devVerboseName("oneFunctionProperty", {}, function() {});
           result = new Cls;
           result.__extend__ = create;
           for (var key in keys) if (keys[key]) result[key] = fn;
@@ -3870,13 +4188,13 @@ var __resources__ = {
   var resources = {};
   var resourceContentCache = {};
   var resourcePatch = {};
+  var virtualResourceSeed = 1;
   var resourceResolvingStack = [];
   var requires;
   (function() {
     var map = typeof __resources__ != "undefined" ? __resources__ : null;
     if (map) {
       for (var key in map) resourceContentCache[pathUtils.resolve(key)] = map[key];
-      __resources__ = null;
     }
   })();
   function applyResourcePatches(resource) {
@@ -3900,7 +4218,7 @@ var __resources__ = {
         }
       } else {
         try {
-          resourceContent = require("fs").readFileSync(url, "utf-8");
+          resourceContent = process.basisjsReadFile ? process.basisjsReadFile(url) : require("fs").readFileSync(url, "utf-8");
         } catch (e) {
           consoleMethods.error("basis.resource: Unable to load " + url, e);
         }
@@ -3909,91 +4227,101 @@ var __resources__ = {
     }
     return resourceContentCache[url];
   };
-  var getResource = function(resourceUrl) {
-    if (!/^(\.\/|\.\.|\/)/.test(resourceUrl)) consoleMethods.warn("Bad usage: basis.resource('" + resourceUrl + "').\nFilenames should starts with `./`, `..` or `/`. Otherwise it will treats as special reference in next minor release.");
-    resourceUrl = pathUtils.resolve(resourceUrl);
-    if (!resources[resourceUrl]) {
-      var contentWrapper = getResource.extensions[pathUtils.extname(resourceUrl)];
-      var resolved = false;
-      var wrapped = false;
-      var content;
-      var wrappedContent;
-      var resource = function() {
-        if (resolved) return content;
-        var urlContent = getResourceContent(resourceUrl);
-        var idx = resourceResolvingStack.indexOf(resourceUrl);
-        if (idx != -1) consoleMethods.warn("basis.resource recursion:", resourceResolvingStack.slice(idx).concat(resourceUrl).map(pathUtils.relative, pathUtils).join(" -> "));
-        resourceResolvingStack.push(resourceUrl);
-        if (contentWrapper) {
-          if (!wrapped) {
-            wrapped = true;
-            content = contentWrapper(urlContent, resourceUrl);
-            wrappedContent = urlContent;
-          }
-        } else {
-          content = urlContent;
+  var createResource = function(resourceUrl, content) {
+    var contentType = pathUtils.extname(resourceUrl);
+    var contentWrapper = getResource.extensions[contentType];
+    var isVirtual = arguments.length > 1;
+    var resolved = false;
+    var wrapped = false;
+    var wrappedContent;
+    if (isVirtual) resourceUrl += "#virtual";
+    var resource = function() {
+      if (resolved) return content;
+      var urlContent = isVirtual ? content : getResourceContent(resourceUrl);
+      var idx = resourceResolvingStack.indexOf(resourceUrl);
+      if (idx != -1) consoleMethods.warn("basis.resource recursion:", resourceResolvingStack.slice(idx).concat(resourceUrl).map(pathUtils.relative, pathUtils).join(" -> "));
+      resourceResolvingStack.push(resourceUrl);
+      if (contentWrapper) {
+        if (!wrapped) {
+          wrapped = true;
+          content = contentWrapper(urlContent, resourceUrl);
+          wrappedContent = urlContent;
         }
-        resolved = true;
-        applyResourcePatches(resource);
-        resource.apply();
-        resourceResolvingStack.pop();
-        return content;
-      };
-      extend(resource, extend(new Token, {
-        url: resourceUrl,
-        fetch: function() {
-          return resource();
-        },
-        toString: function() {
-          return "[basis.resource " + resourceUrl + "]";
-        },
-        isResolved: function() {
-          return resolved;
-        },
-        hasChanges: function() {
-          return contentWrapper ? resourceContentCache[resourceUrl] !== wrappedContent : false;
-        },
-        update: function(newContent) {
-          newContent = String(newContent);
-          if (!resolved || newContent != resourceContentCache[resourceUrl]) {
-            resourceContentCache[resourceUrl] = newContent;
-            if (contentWrapper) {
-              if (wrapped && !contentWrapper.permanent) {
-                content = contentWrapper(newContent, resourceUrl);
-                applyResourcePatches(resource);
-                resource.apply();
-              }
-            } else {
-              content = newContent;
-              resolved = true;
+      } else {
+        content = urlContent;
+      }
+      resolved = true;
+      applyResourcePatches(resource);
+      resource.apply();
+      resourceResolvingStack.pop();
+      return content;
+    };
+    extend(resource, extend(new Token, {
+      url: resourceUrl,
+      type: contentType,
+      virtual: isVirtual,
+      fetch: function() {
+        return resource();
+      },
+      toString: function() {
+        return "[basis.resource " + resourceUrl + "]";
+      },
+      isResolved: function() {
+        return resolved;
+      },
+      hasChanges: function() {
+        return contentWrapper ? resourceContentCache[resourceUrl] !== wrappedContent : false;
+      },
+      update: function(newContent) {
+        if (!resolved || isVirtual || newContent != resourceContentCache[resourceUrl]) {
+          if (!isVirtual) resourceContentCache[resourceUrl] = newContent;
+          if (contentWrapper) {
+            if (!wrapped && isVirtual) content = newContent;
+            if (wrapped && !contentWrapper.permanent) {
+              content = contentWrapper(newContent, resourceUrl, content);
               applyResourcePatches(resource);
               resource.apply();
             }
+          } else {
+            content = newContent;
+            resolved = true;
+            applyResourcePatches(resource);
+            resource.apply();
           }
-        },
-        reload: function() {
-          var oldContent = resourceContentCache[resourceUrl];
-          var newContent = getResourceContent(resourceUrl, true);
-          if (newContent != oldContent) {
-            resolved = false;
-            resource.update(newContent);
-          }
-        },
-        get: function(source) {
-          return source ? getResourceContent(resourceUrl) : resource();
-        },
-        ready: function(fn, context) {
-          if (resolved) {
-            fn.call(context, resource());
-            if (contentWrapper && contentWrapper.permanent) return;
-          }
-          resource.attach(fn, context);
-          return resource;
         }
-      }));
-      resources[resourceUrl] = resource;
-    }
-    return resources[resourceUrl];
+      },
+      reload: function() {
+        if (isVirtual) return;
+        var oldContent = resourceContentCache[resourceUrl];
+        var newContent = getResourceContent(resourceUrl, true);
+        if (newContent != oldContent) {
+          resolved = false;
+          resource.update(newContent);
+        }
+      },
+      get: function(source) {
+        if (isVirtual) if (source) return contentWrapper ? wrappedContent : content;
+        return source ? getResourceContent(resourceUrl) : resource();
+      },
+      ready: function(fn, context) {
+        if (resolved) {
+          fn.call(context, resource());
+          if (contentWrapper && contentWrapper.permanent) return;
+        }
+        resource.attach(fn, context);
+        return resource;
+      }
+    }));
+    resources[resourceUrl] = resource;
+    return resource;
+  };
+  var getResource = function(resourceUrl) {
+    var resource = resources[resourceUrl];
+    if (resource) return resource;
+    if (!/^(\.\/|\.\.|\/)/.test(resourceUrl)) consoleMethods.warn("Bad usage: basis.resource('" + resourceUrl + "').\nFilenames should starts with `./`, `..` or `/`. Otherwise it will treats as special reference in next minor release.");
+    resourceUrl = pathUtils.resolve(resourceUrl);
+    resource = resources[resourceUrl];
+    return resource || createResource(resourceUrl);
   };
   extend(getResource, {
     isResource: function(value) {
@@ -4016,24 +4344,27 @@ var __resources__ = {
     getFiles: function(cache) {
       return keys(cache ? resourceContentCache : resources).map(pathUtils.relative);
     },
+    virtual: function(type, content, ownerUrl) {
+      return createResource((ownerUrl ? ownerUrl + ":" : pathUtils.normalize(pathUtils.baseURI == "/" ? "" : pathUtils.baseURI) + "/") + "virtual-resource" + virtualResourceSeed++ + "." + type, content);
+    },
     extensions: {
       ".js": extend(function(content, filename) {
         var namespace = filename2namespace[filename];
         if (!namespace) {
           var implicitNamespace = true;
-          namespace = pathUtils.dirname(filename) + "/" + pathUtils.basename(filename, pathUtils.extname(filename));
-          for (var ns in config.path) {
-            var path = config.path[ns] + ns + "/";
-            if (filename.substr(0, path.length) == path) {
+          var resolvedFilename = pathUtils.dirname(filename) + "/" + pathUtils.basename(filename, pathUtils.extname(filename));
+          for (var ns in nsRootPath) {
+            var path = nsRootPath[ns] + ns + "/";
+            if (resolvedFilename.substr(0, path.length) == path) {
               implicitNamespace = false;
-              namespace = namespace.substr(config.path[ns].length);
+              resolvedFilename = resolvedFilename.substr(nsRootPath[ns].length);
               break;
             }
           }
-          namespace = namespace.replace(/\./g, "_").replace(/^\//g, "").replace(/\//g, ".");
+          namespace = resolvedFilename.replace(/\./g, "_").replace(/^\//g, "").replace(/\//g, ".");
           if (implicitNamespace) namespace = "implicit." + namespace;
         }
-        if (requires) Array_extensions.add(requires, namespace);
+        if (requires) arrayFunctions.add(requires, namespace);
         if (!namespaces[namespace]) {
           var ns = getNamespace(namespace);
           var savedRequires = requires;
@@ -4052,10 +4383,10 @@ var __resources__ = {
       }, {
         permanent: true
       }),
-      ".css": function(content, url) {
-        var resource = CssResource.resources[url];
-        if (!resource) resource = new CssResource(url); else resource.updateCssText(content);
-        return resource;
+      ".css": function(content, url, cssResource) {
+        if (!cssResource) cssResource = new CssResource(url);
+        cssResource.updateCssText(content);
+        return cssResource;
       },
       ".json": function(content, url) {
         if (typeof content == "object") return content;
@@ -4110,7 +4441,12 @@ var __resources__ = {
   var namespaces = {};
   var namespace2filename = {};
   var filename2namespace = {};
-  var nsRootPath = slice(config.path);
+  var nsRootPath = {};
+  iterate(config.modules, function(name, module) {
+    nsRootPath[name] = module.path + "/";
+    namespace2filename[name] = module.filename;
+    filename2namespace[module.filename] = name;
+  });
   (function(map) {
     var map = typeof __namespace_map__ != "undefined" ? __namespace_map__ : null;
     if (map) {
@@ -4139,12 +4475,14 @@ var __resources__ = {
     }
   });
   function resolveNSFilename(namespace) {
-    var namespaceRoot = namespace.split(".")[0];
-    var filename = namespace.replace(/\./g, "/") + ".js";
     if (namespace in namespace2filename == false) {
-      if (namespaceRoot in nsRootPath == false) nsRootPath[namespaceRoot] = pathUtils.baseURI;
-      if (namespaceRoot == namespace) filename2namespace[nsRootPath[namespaceRoot] + filename] = namespaceRoot;
-      namespace2filename[namespace] = nsRootPath[namespaceRoot] + filename;
+      var parts = namespace.split(".");
+      var namespaceRoot = parts.shift();
+      var filename = parts.join("/") + ".js";
+      if (namespaceRoot in nsRootPath == false) nsRootPath[namespaceRoot] = pathUtils.baseURI + namespaceRoot + "/";
+      if (namespaceRoot == namespace) filename = nsRootPath[namespaceRoot].replace(/\/$/, "") + ".js"; else filename = nsRootPath[namespaceRoot] + filename;
+      namespace2filename[namespace] = filename;
+      filename2namespace[filename] = namespace;
     }
     return namespace2filename[namespace];
   }
@@ -4183,7 +4521,7 @@ var __resources__ = {
           var namespace = getNamespace(filename);
           moduleProto._compile = function(content, filename) {
             this.basis = basis;
-            content = "var node_require = require;\n" + "var basis = module.basis;\n" + 'var resource = function(filename){ return basis.resource(__dirname + "/" + filename) };\n' + "var require = function(filename, baseURI){ return basis.require(filename, baseURI || __dirname) };\n" + content;
+            content = "var __nodejsRequire = require;\n" + "var basis = module.basis;\n" + 'var resource = function(filename){ return basis.resource(__dirname + "/" + filename) };\n' + "var require = function(filename, baseURI){ return basis.require(filename, baseURI || __dirname) };\n" + content;
             _compile.call(extend(this, namespace), content, filename);
           };
           var exports = require(__dirname + "/" + filename.replace(/\./g, "/"));
@@ -4219,16 +4557,6 @@ var __resources__ = {
     var resource = getResource.get(filename);
     if (resource && resource.isResolved()) patchFn(resource.get(), resource.url);
   }
-  function extendProto(cls, extensions) {
-    if (config.extProto) for (var key in extensions) cls.prototype[key] = function(method, clsName) {
-      return function() {
-        if (config.extProto == "warn") consoleMethods.warn(clsName + "#" + method + " is not a standard method and will be removed soon; use basis." + clsName.toLowerCase() + "." + method + " instead");
-        var args = [ this ];
-        Array.prototype.push.apply(args, arguments);
-        return extensions[method].apply(extensions, args);
-      };
-    }(key, cls.name || cls.toString().match(/^\s*function\s*(\w*)\s*\(/)[1]);
-  }
   complete(Function.prototype, {
     bind: function(thisObject) {
       var fn = this;
@@ -4242,13 +4570,13 @@ var __resources__ = {
   });
   complete(Array, {
     isArray: function(value) {
-      return Object_toString.call(value) === "[object Array]";
+      return toString.call(value) === "[object Array]";
     }
   });
   function arrayFrom(object, offset) {
     if (object != null) {
       var len = object.length;
-      if (typeof len == "undefined" || Object_toString.call(object) == "[object Function]") return [ object ];
+      if (typeof len == "undefined" || toString.call(object) == "[object Function]") return [ object ];
       if (!offset) offset = 0;
       if (len - offset > 0) {
         for (var result = [], k = 0, i = offset; i < len; ) result[k++] = object[i++];
@@ -4312,12 +4640,14 @@ var __resources__ = {
       return result;
     }
   });
-  var Array_extensions = {
+  var arrayFunctions = {
+    from: arrayFrom,
+    create: createArray,
     flatten: function(this_) {
       return this_.concat.apply([], this_);
     },
     repeat: function(this_, count) {
-      return Array_extensions.flatten(createArray(parseInt(count, 10) || 0, this_));
+      return arrayFunctions.flatten(createArray(parseInt(count, 10) || 0, this_));
     },
     search: function(this_, value, getter_, offset) {
       this_.lastSearchIndex = -1;
@@ -4341,7 +4671,11 @@ var __resources__ = {
     has: function(this_, value) {
       return this_.indexOf(value) != -1;
     },
-    sortAsObject: function(this_, getter_, comparator, desc) {
+    sortAsObject: function() {
+      consoleMethods.warn("basis.array.sortAsObject is deprecated, use basis.array.sort instead");
+      return arrayFunctions.sort.apply(this, arguments);
+    },
+    sort: function(this_, getter_, comparator, desc) {
       getter_ = getter(getter_);
       desc = desc ? -1 : 1;
       return this_.map(function(item, index) {
@@ -4352,11 +4686,10 @@ var __resources__ = {
       }).sort(comparator || function(a, b) {
         return desc * (a.v > b.v || -(a.v < b.v) || (a.i > b.i ? 1 : -1));
       }).map(function(item) {
-        return this_[item.i];
+        return this[item.i];
       }, this_);
     }
   };
-  extendProto(Array, Array_extensions);
   if (![ 1, 2 ].splice(1).length) {
     var nativeArraySplice = Array.prototype.splice;
     Array.prototype.splice = function() {
@@ -4367,12 +4700,6 @@ var __resources__ = {
   }
   var ESCAPE_FOR_REGEXP = /([\/\\\(\)\[\]\?\{\}\|\*\+\-\.\^\$])/g;
   var FORMAT_REGEXP = /\{([a-z\d_]+)(?::([\.0])(\d+)|:(\?))?\}/gi;
-  function isEmptyString(value) {
-    return value == null || String(value) == "";
-  }
-  function isNotEmptyString(value) {
-    return value != null && String(value) != "";
-  }
   complete(String, {
     toLowerCase: function(value) {
       return String(value).toLowerCase();
@@ -4401,7 +4728,7 @@ var __resources__ = {
       return this.trimLeft().trimRight();
     }
   });
-  var String_extensions = {
+  var stringFunctions = {
     toObject: function(this_, rethrow) {
       try {
         return (new Function("return 0," + this_))();
@@ -4426,7 +4753,7 @@ var __resources__ = {
         var value = key in data ? data[key] : noNull ? "" : m;
         if (numFormat && !isNaN(value)) {
           value = Number(value);
-          return numFormat == "." ? value.toFixed(num) : Number_extensions.lead(value, num);
+          return numFormat == "." ? value.toFixed(num) : numberFunctions.lead(value, num);
         }
         return value;
       });
@@ -4443,9 +4770,14 @@ var __resources__ = {
       return this_.replace(/[A-Z]/g, function(m) {
         return "-" + m.toLowerCase();
       });
+    },
+    isEmpty: function(value) {
+      return value == null || String(value) == "";
+    },
+    isNotEmpty: function(value) {
+      return value != null && String(value) != "";
     }
   };
-  extendProto(String, String_extensions);
   if ("|||".split(/\|/).length + "|||".split(/(\|)/).length != 11) {
     var nativeStringSplit = String.prototype.split;
     String.prototype.split = function(pattern, count) {
@@ -4469,7 +4801,7 @@ var __resources__ = {
       return nativeStringSubstr.call(this, start < 0 ? Math.max(0, this.length + start) : start, end);
     };
   }
-  var Number_extensions = {
+  var numberFunctions = {
     fit: function(this_, min, max) {
       if (!isNaN(min) && this_ < min) return Number(min);
       if (!isNaN(max) && this_ > max) return Number(max);
@@ -4496,7 +4828,6 @@ var __resources__ = {
       return res + (postfix || "");
     }
   };
-  extendProto(Number, Number_extensions);
   complete(Date, {
     now: function() {
       return Number(new Date);
@@ -4585,10 +4916,10 @@ var __resources__ = {
     }
     function remove(node) {
       for (var key in callbacks) {
-        var entry = Array_extensions.search(callbacks[key], node, function(item) {
+        var entry = arrayFunctions.search(callbacks[key], node, function(item) {
           return item[1] && item[1][1];
         });
-        if (entry) Array_extensions.remove(callbacks[key], entry);
+        if (entry) arrayFunctions.remove(callbacks[key], entry);
       }
       if (node && node.parentNode && node.parentNode.nodeType == 1) node.parentNode.removeChild(node);
     }
@@ -4650,7 +4981,7 @@ var __resources__ = {
         if (object != null) objects.push(object);
       },
       remove: function(object) {
-        Array_extensions.remove(objects, object);
+        arrayFunctions.remove(objects, object);
       }
     };
     result.destroy_ = destroy;
@@ -4658,8 +4989,6 @@ var __resources__ = {
     return result;
   }();
   var CssResource = function() {
-    var cssResources = {};
-    var cleanupDom = true;
     var STYLE_APPEND_BUGGY = function() {
       try {
         return !document.createElement("style").appendChild(document.createTextNode(""));
@@ -4667,13 +4996,6 @@ var __resources__ = {
         return true;
       }
     }();
-    cleaner.add({
-      destroy: function() {
-        cleanupDom = false;
-        for (var url in cssResources) cssResources[url].destroy();
-        cssResources = null;
-      }
-    });
     var baseEl = document && document.createElement("base");
     function setBase(baseURI) {
       baseEl.setAttribute("href", baseURI);
@@ -4687,26 +5009,23 @@ var __resources__ = {
       setBase(this.baseURI);
       if (!this.element) {
         this.element = document.createElement("style");
-        if (!STYLE_APPEND_BUGGY) this.textNode = this.element.appendChild(document.createTextNode(""));
-        this.element.setAttribute("src", pathUtils.relative(this.url));
+        if (!STYLE_APPEND_BUGGY) this.element.appendChild(document.createTextNode(""));
+        this.element.setAttribute("src", this.url);
       }
       documentInterface.head.add(this.element);
       this.syncCssText();
       restoreBase();
     }
-    var CssResource = Class(null, {
+    return Class(null, {
       className: "basis.CssResource",
       inUse: 0,
       url: "",
       baseURI: "",
-      cssText: "",
-      resource: null,
+      cssText: undefined,
       element: null,
-      textNode: null,
       init: function(url) {
-        this.url = pathUtils.resolve(url);
+        this.url = url;
         this.baseURI = pathUtils.dirname(url) + "/";
-        cssResources[url] = this;
       },
       updateCssText: function(cssText) {
         if (this.cssText != cssText) {
@@ -4718,22 +5037,15 @@ var __resources__ = {
           }
         }
       },
-      syncCssText: function() {
-        if (this.textNode) {
-          this.textNode.nodeValue = this.cssText;
-        } else {
-          this.element.styleSheet.cssText = this.cssText;
-        }
+      syncCssText: STYLE_APPEND_BUGGY ? function() {
+        this.element.styleSheet.cssText = this.cssText;
+      } : function() {
+        var cssText = this.cssText;
+        cssText += "\n/*# sourceURL=" + pathUtils.origin + this.url + " */";
+        this.element.firstChild.nodeValue = cssText;
       },
       startUse: function() {
-        if (!this.inUse) {
-          if (!this.resource) {
-            var resource = getResource(this.url);
-            this.resource = resource;
-            this.cssText = resource.get(true);
-          }
-          documentInterface.head.ready(injectStyleToHead, this);
-        }
+        if (!this.inUse) documentInterface.head.ready(injectStyleToHead, this);
         this.inUse += 1;
       },
       stopUse: function() {
@@ -4743,22 +5055,23 @@ var __resources__ = {
         }
       },
       destroy: function() {
-        if (this.element && cleanupDom) documentInterface.remove(this.element);
+        if (this.element) documentInterface.remove(this.element);
         this.element = null;
-        this.textNode = null;
-        this.resource = null;
         this.cssText = null;
       }
     });
-    CssResource.resources = cssResources;
-    return CssResource;
   }();
   var basis = getNamespace("basis").extend({
     filename_: basisFilename,
+    processConfig: processConfig,
     version: VERSION,
     NODE_ENV: NODE_ENV,
     config: config,
-    platformFeature: {},
+    createSandbox: function(config) {
+      return createBasisInstance(global, basisFilename, complete({
+        noConflict: true
+      }, config));
+    },
     resolveNSFilename: resolveNSFilename,
     patch: patch,
     namespace: getNamespace,
@@ -4775,6 +5088,7 @@ var __resources__ = {
     Class: Class,
     Token: Token,
     DeferredToken: DeferredToken,
+    genUID: genUID,
     getter: getter,
     ready: ready,
     cleaner: cleaner,
@@ -4811,15 +5125,9 @@ var __resources__ = {
       lazyInitAndRun: lazyInitAndRun,
       runOnce: runOnce
     },
-    array: extend(arrayFrom, merge(Array_extensions, {
-      from: arrayFrom,
-      create: createArray
-    })),
-    string: merge(String_extensions, {
-      isEmpty: isEmptyString,
-      isNotEmpty: isNotEmptyString
-    }),
-    number: Number_extensions,
+    array: extend(arrayFrom, arrayFunctions),
+    string: stringFunctions,
+    number: numberFunctions,
     bool: {
       invert: function(value) {
         return !value;
@@ -4827,11 +5135,14 @@ var __resources__ = {
     },
     json: {
       parse: typeof JSON != "undefined" ? JSON.parse : function(str) {
-        return String_extensions.toObject(str, true);
+        return stringFunctions.toObject(str, true);
       }
     }
   });
   getNamespace("basis.dev").extend(consoleMethods);
-  if (config.autoload) requireNamespace(config.autoload);
+  if (config.autoload) config.autoload.forEach(function(name) {
+    requireNamespace(name);
+  });
+  return basis;
 })(this);
 }).call(this);
