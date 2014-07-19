@@ -1328,11 +1328,15 @@ var __resources__ = {
               });
             }
           }
-          if (this.debug_emit) this.debug_emit({
-            sender: this,
-            type: eventName,
-            args: arguments
-          });
+          if (this.debug_emit) {
+            args = [];
+            for (var i = 0; i < arguments.length; i++) args.push(arguments[i]);
+            this.debug_emit({
+              sender: this,
+              type: eventName,
+              args: args
+            });
+          }
         };
         eventFunction = (new Function("slice", 'return {"' + namespace + ".events." + eventName + '":\n\n      ' + "function(" + slice.call(arguments, 1).join(", ") + "){" + eventFunction.toString().replace(/\beventName\b/g, '"' + eventName + '"').replace(/^function[^(]*\(\)[^{]*\{|\}$/g, "") + "}" + '\n\n}["' + namespace + ".events." + eventName + '"];'))(slice);
         events[eventName] = eventFunction;
@@ -2418,9 +2422,9 @@ var __resources__ = {
           source = tokenize(String(source));
         }
         if (source.warns) warns.push.apply(warns, source.warns);
-        if (sourceOrigin) includeStack.push(sourceOrigin);
+        includeStack.push(sourceOrigin !== true && sourceOrigin || {});
         result.tokens = process(source, result, options);
-        if (sourceOrigin) includeStack.pop();
+        includeStack.pop();
         if (!result.tokens) result.tokens = [ [ 3, 0, 0, "" ] ];
         if (source_) result.tokens.source_ = source_;
         addTokenRef(result.tokens[0], "element");
@@ -3395,17 +3399,17 @@ var __resources__ = {
 
 (function createBasisInstance(global, __basisFilename, __config) {
   "use strict";
-  var VERSION = "1.3.0";
+  var VERSION = "1.3.1-dev";
   var document = global.document;
   var toString = Object.prototype.toString;
   function genUID(len) {
     function base36(val) {
-      return parseInt(Number(val), 10).toString(36);
+      return Math.round(val).toString(36);
     }
-    var result = (global.performance ? base36(global.performance.now()) : "") + base36(new Date);
+    var result = base36(10 + 25 * Math.random());
     if (!len) len = 16;
-    while (result.length < len) result = base36(1e12 * Math.random()) + result;
-    return result.substr(result.length - len, len);
+    while (result.length < len) result += base36(new Date * Math.random());
+    return result.substr(0, len);
   }
   function extend(dest, source) {
     for (var key in source) dest[key] = source[key];
@@ -3710,13 +3714,13 @@ var __resources__ = {
       };
     } else {
       if (global.MessageChannel) {
+        var channel = new global.MessageChannel;
+        channel.port1.onmessage = function(event) {
+          var taskId = event.data;
+          runTask(taskId);
+        };
         addToQueue = function(taskId) {
-          var channel = new global.MessageChannel;
-          var setImmediateHandler = function() {
-            runTask(taskId);
-          };
-          channel.port1.onmessage = setImmediateHandler;
-          channel.port2.postMessage("");
+          channel.port2.postMessage(taskId);
         };
       } else {
         var postMessageSupported = global.postMessage && !global.importScripts;
@@ -3905,12 +3909,12 @@ var __resources__ = {
       };
       var filename = module.filename;
       var path = module.path;
-      if (path) path = pathUtils.resolve(path);
-      if (filename) filename = pathUtils.resolve(filename);
       if (filename && !path) {
+        filename = pathUtils.resolve(filename);
         path = filename.substr(0, filename.length - pathUtils.extname(filename).length);
         filename = "../" + pathUtils.basename(filename);
       }
+      path = pathUtils.resolve(path);
       if (!filename && path) {
         filename = pathUtils.basename(path);
         path = pathUtils.dirname(path);
