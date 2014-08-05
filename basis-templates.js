@@ -3399,7 +3399,7 @@ var __resources__ = {
 
 (function createBasisInstance(global, __basisFilename, __config) {
   "use strict";
-  var VERSION = "1.3.1-dev";
+  var VERSION = "1.3.2";
   var document = global.document;
   var toString = Object.prototype.toString;
   function genUID(len) {
