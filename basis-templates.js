@@ -3399,7 +3399,7 @@ var __resources__ = {
 
 (function createBasisInstance(global, __basisFilename, __config) {
   "use strict";
-  var VERSION = "1.3.2";
+  var VERSION = "1.3.3";
   var document = global.document;
   var toString = Object.prototype.toString;
   function genUID(len) {
@@ -3445,7 +3445,9 @@ var __resources__ = {
     return result;
   }
   function merge() {
-    return arrayFrom(arguments).reduce(extend, {});
+    var result = {};
+    for (var i = 0; i < arguments.length; i++) extend(result, arguments[i]);
+    return result;
   }
   function iterate(object, callback, thisObject) {
     var result = [];
