@@ -1,4 +1,4 @@
-// resources (14):
+// resources(14):
 //   [function] ../../src/basis/template/theme.js -> 5.js
 //   [function] templates.js -> 0.js
 //   [function] ../../src/basis/template/const.js -> 2.js
@@ -14,8 +14,9 @@
 //   [function] ../../src/basis/template/buildDom.js -> a.js
 //   [function] ../../src/basis/dom/event.js -> b.js
 //
-// filelist (1): 
-//   templates.js
+// filelist(1):
+//   /scripts/release-configs/templates.js
+//
 (function(){
 "use strict";
 
@@ -2502,9 +2503,10 @@ var __resources__ = {
               if (template) {
                 var context = this.context;
                 var bindings = this.bindings;
+                var onAction = this.action;
                 var bindingInterface = this.bindingInterface;
-                tmpl = template.createInstance(context, null, function onRebuild() {
-                  tmpl = newAttach.tmpl = template.createInstance(context, null, onRebuild, bindings, bindingInterface);
+                tmpl = template.createInstance(context, onAction, function onRebuild() {
+                  tmpl = newAttach.tmpl = template.createInstance(context, onAction, onRebuild, bindings, bindingInterface);
                   tmpl.parent = tmpl.element.parentNode || tmpl.element;
                   updateAttach.call(newAttach);
                 }, bindings, bindingInterface);
@@ -4331,7 +4333,7 @@ var __resources__ = {
 
 (function createBasisInstance(context, __basisFilename, __config) {
   "use strict";
-  var VERSION = "1.4.0";
+  var VERSION = "1.4.1";
   var global = Function("return this")();
   var NODE_ENV = global !== context ? global : false;
   var document = global.document;
