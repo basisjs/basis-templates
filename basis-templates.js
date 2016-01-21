@@ -1,18 +1,20 @@
-// resources(14):
-//   [function] ../../src/basis/template/theme.js -> 5.js
-//   [function] templates.js -> 0.js
-//   [function] ../../src/basis/template/const.js -> 2.js
-//   [function] ../../src/basis/template/declaration.js -> 3.js
-//   [function] ../../src/basis/template/tokenize.js -> c.js
-//   [function] ../../src/basis/template/isolateCss.js -> d.js
-//   [function] ../../src/basis/template/store.js -> 4.js
-//   [function] ../../src/basis/template.js -> 1.js
-//   [function] ../../src/basis/template/html.js -> 6.js
-//   [function] ../../src/basis/l10n.js -> 7.js
-//   [function] ../../src/basis/event.js -> 8.js
-//   [function] ../../src/basis/template/htmlfgen.js -> 9.js
-//   [function] ../../src/basis/template/buildDom.js -> a.js
-//   [function] ../../src/basis/dom/event.js -> b.js
+// resources(16):
+//   [function] ../../src/basis/template/theme.js -> 6.js
+//   [function] ../../src/basis/devpanel.js -> 0.js
+//   [function] ../../src/basis/template.js -> 2.js
+//   [function] ../../src/basis/template/const.js -> 3.js
+//   [function] ../../src/basis/template/declaration.js -> 4.js
+//   [function] ../../src/basis/template/tokenize.js -> e.js
+//   [function] ../../src/basis/template/isolateCss.js -> f.js
+//   [function] ../../src/basis/template/store.js -> 5.js
+//   [function] templates.js -> 1.js
+//   [function] ../../src/basis/template/html.js -> 7.js
+//   [function] ../../src/basis/l10n.js -> 8.js
+//   [function] ../../src/basis/event.js -> 9.js
+//   [function] ../../src/basis/template/htmlfgen.js -> a.js
+//   [function] ../../src/basis/template/namespace.js -> b.js
+//   [function] ../../src/basis/template/buildDom.js -> c.js
+//   [function] ../../src/basis/dom/event.js -> d.js
 //
 // filelist(1):
 //   /scripts/release-configs/templates.js
@@ -20,12 +22,12 @@
 (function(){
 "use strict";
 
-var __namespace_map__ = {"0.js":"templates","1.js":"basis.template","2.js":"basis.template.const","3.js":"basis.template.declaration","4.js":"basis.template.store","5.js":"basis.template.theme","6.js":"basis.template.html","7.js":"basis.l10n","8.js":"basis.event","9.js":"basis.template.htmlfgen","a.js":"basis.template.buildDom","b.js":"basis.dom.event"};
+var __namespace_map__ = {"0.js":"basis.devpanel","1.js":"templates","2.js":"basis.template","3.js":"basis.template.const","4.js":"basis.template.declaration","5.js":"basis.template.store","6.js":"basis.template.theme","7.js":"basis.template.html","8.js":"basis.l10n","9.js":"basis.event","a.js":"basis.template.htmlfgen","b.js":"basis.template.namespace","c.js":"basis.template.buildDom","d.js":"basis.dom.event"};
 var templates;
 
 var __resources__ = {
-  "5.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
-    var namespace = this.path;
+  "6.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+    var namespace = "basis.template.theme";
     var themes = {};
     var sourceByPath = {};
     var themeChangeHandlers = [];
@@ -94,6 +96,7 @@ var __resources__ = {
         if (name == themeName || used[name]) continue;
         used[name] = true;
         result.push(name);
+        getTheme(name);
         list.splice.apply(list, [ i + 1, 0 ].concat(themes[name].fallback));
       }
       result.unshift(themeName);
@@ -253,38 +256,289 @@ var __resources__ = {
     };
   },
   "0.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
-    var resolveTemplateById = basis.require("./1.js").resolveTemplateById;
-    var HtmlTemplate = basis.require("./6.js").Template;
-    var srcMap = [];
-    var tmplMap = [];
-    function templateWrapper(src) {
-      var index = srcMap.indexOf(src);
-      if (index != -1) return tmplMap[index];
-      var template = new HtmlTemplate(src);
-      srcMap.push(src);
-      tmplMap.push(template);
-      return template;
+    if (basis.filename_) {
+      basis.createSandbox({
+        inspect: basis,
+        devInfoResolver: basis.config.devInfoResolver,
+        modules: {
+          devpanel: {
+            autoload: true,
+            path: basis.path.dirname(basis.filename_) + "/devpanel/",
+            filename: "index.js"
+          }
+        }
+      });
     }
-    global.bt = module.exports = basis.object.extend(templateWrapper, {
-      init: function(config) {
-        if (!config) return this;
-        if (config.noConflict) {
-          delete global.bt;
-          return this;
-        }
-      },
-      dispose: function(tmpl) {
-        var template = resolveTemplateById(tmpl.templateId_);
-        if (!template) {
-          basis.dev.warn("Template is not resolved for ", tmpl);
-          return;
-        }
-        template.clearInstance(tmpl);
-      },
-      template: templateWrapper
-    });
   },
   "2.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+    var namespace = "basis.template";
+    var document = global.document;
+    var Class = basis.Class;
+    var cleaner = basis.cleaner;
+    var path = basis.path;
+    var consts = basis.require("./3.js");
+    var DECLARATION_VERSION = basis.require("./4.js").VERSION;
+    var getDeclFromSource = basis.require("./4.js").getDeclFromSource;
+    var makeDeclaration = basis.require("./4.js").makeDeclaration;
+    var setIsolatePrefixGenerator = basis.require("./4.js").setIsolatePrefixGenerator;
+    var store = basis.require("./5.js");
+    var theme = basis.require("./6.js");
+    var getSourceByPath = theme.get;
+    var templateList = [];
+    var sourceByDocumentId = {};
+    function resolveSourceByDocumentId(sourceId) {
+      var resource = sourceByDocumentId[sourceId];
+      if (!resource) {
+        var host = document.getElementById(sourceId);
+        var source = "";
+        if (host && host.tagName == "SCRIPT" && host.type == "text/basis-template") source = host.textContent || host.text; else if (!host) basis.dev.warn("Template script element with id `" + sourceId + "` not found"); else basis.dev.warn('Template should be declared in <script type="text/basis-template"> element (id `' + sourceId + "`)");
+        resource = sourceByDocumentId[sourceId] = basis.resource.virtual("tmpl", source || "");
+        resource.id = sourceId;
+        resource.url = '<script id="' + sourceId + '"/>';
+      }
+      return resource;
+    }
+    function resolveResource(ref, baseURI) {
+      if (/^#\d+$/.test(ref)) return templateList[ref.substr(1)];
+      if (/^id:/.test(ref)) return resolveSourceByDocumentId(ref.substr(3));
+      if (/^[a-z0-9\.]+$/i.test(ref) && !/\.tmpl$/.test(ref)) return getSourceByPath(ref);
+      return basis.resource(basis.resource.resolveURI(ref, baseURI, '<b:include src="{url}"/>'));
+    }
+    function templateSourceUpdate() {
+      if (this.destroyBuilder) buildTemplate.call(this);
+      var cursor = this;
+      while (cursor = cursor.attaches_) cursor.handler.call(cursor.context);
+    }
+    function buildTemplate() {
+      var declaration = getDeclFromSource(this.source, this.baseURI, false, {
+        isolate: this.getIsolatePrefix()
+      });
+      var destroyBuilder = this.destroyBuilder;
+      var instances = {};
+      var funcs = this.builder(declaration.tokens, instances);
+      this.createInstance = funcs.createInstance;
+      this.clearInstance = funcs.destroyInstance;
+      this.destroyBuilder = funcs.destroy;
+      store.add(this.templateId, this, instances);
+      this.instances_ = instances;
+      this.decl_ = declaration;
+      var newDeps = declaration.deps;
+      var oldDeps = this.deps_;
+      this.deps_ = newDeps;
+      if (oldDeps) for (var i = 0, dep; dep = oldDeps[i]; i++) dep.bindingBridge.detach(dep, templateSourceUpdate, this);
+      if (newDeps) for (var i = 0, dep; dep = newDeps[i]; i++) dep.bindingBridge.attach(dep, templateSourceUpdate, this);
+      var newResources = declaration.resources;
+      var oldResources = this.resources;
+      this.resources = newResources;
+      if (newResources) for (var i = 0, url; url = newResources[i]; i++) {
+        var resource = basis.resource(url).fetch();
+        if (typeof resource.startUse == "function") resource.startUse();
+      }
+      if (oldResources) for (var i = 0, url; url = oldResources[i]; i++) {
+        var resource = basis.resource(url).fetch();
+        if (typeof resource.stopUse == "function") resource.stopUse();
+      }
+      if (destroyBuilder) destroyBuilder(true);
+    }
+    var Template = Class(null, {
+      className: namespace + ".Template",
+      __extend__: function(value) {
+        if (value instanceof Template) return value;
+        if (value instanceof TemplateSwitchConfig) return new TemplateSwitcher(value);
+        return new Template(value);
+      },
+      source: "",
+      baseURI: "",
+      url: "",
+      attaches_: null,
+      init: function(source) {
+        if (templateList.length == 4096) throw "Too many templates (maximum 4096)";
+        this.setSource(source || "");
+        this.templateId = templateList.push(this) - 1;
+      },
+      bindingBridge: {
+        attach: function(template, handler, context) {
+          var cursor = template;
+          while (cursor = cursor.attaches_) if (cursor.handler === handler && cursor.context === context) basis.dev.warn("basis.template.Template#bindingBridge.attach: duplicate handler & context pair");
+          template.attaches_ = {
+            handler: handler,
+            context: context,
+            attaches_: template.attaches_
+          };
+        },
+        detach: function(template, handler, context) {
+          var cursor = template;
+          var prev;
+          while (prev = cursor, cursor = cursor.attaches_) if (cursor.handler === handler && cursor.context === context) {
+            prev.attaches_ = cursor.attaches_;
+            return;
+          }
+          basis.dev.warn("basis.template.Template#bindingBridge.detach: handler & context pair not found, nothing was removed");
+        },
+        get: function(template) {
+          var source = template.source;
+          return source && source.bindingBridge ? source.bindingBridge.get(source) : source;
+        }
+      },
+      createInstance: function(object, actionCallback, updateCallback, bindings, bindingInterface) {
+        buildTemplate.call(this);
+        return this.createInstance(object, actionCallback, updateCallback, bindings, bindingInterface);
+      },
+      clearInstance: function() {},
+      getIsolatePrefix: function() {
+        return "i" + this.templateId + "__";
+      },
+      setSource: function(source) {
+        var oldSource = this.source;
+        if (oldSource != source) {
+          if (typeof source == "string") {
+            var m = source.match(/^([a-z]+):/);
+            if (m) {
+              source = source.substr(m[0].length);
+              switch (m[1]) {
+                case "id":
+                  source = resolveSourceByDocumentId(source);
+                  break;
+                case "path":
+                  source = getSourceByPath(source);
+                  break;
+                default:
+                  basis.dev.warn(namespace + ".Template.setSource: Unknown prefix " + m[1] + " for template source was ingnored.");
+              }
+            }
+          }
+          if (oldSource && oldSource.bindingBridge) {
+            this.url = "";
+            this.baseURI = "";
+            oldSource.bindingBridge.detach(oldSource, templateSourceUpdate, this);
+          }
+          if (source && source.bindingBridge) {
+            if (source.url) {
+              this.url = source.url;
+              this.baseURI = path.dirname(source.url) + "/";
+            }
+            source.bindingBridge.attach(source, templateSourceUpdate, this);
+          }
+          this.source = source;
+          templateSourceUpdate.call(this);
+        }
+      },
+      destroy: function() {
+        if (this.destroyBuilder) {
+          store.remove(this.templateId);
+          this.destroyBuilder();
+        }
+        this.attaches_ = null;
+        this.createInstance = null;
+        this.resources = null;
+        this.source = null;
+        this.instances_ = null;
+        this.decl_ = null;
+      }
+    });
+    var TemplateSwitchConfig = function(config) {
+      basis.object.extend(this, config);
+    };
+    var TemplateSwitcher = basis.Class(null, {
+      className: namespace + ".TemplateSwitcher",
+      ruleRet_: null,
+      templates_: null,
+      templateClass: Template,
+      ruleEvents: null,
+      rule: String,
+      init: function(config) {
+        this.ruleRet_ = [];
+        this.templates_ = [];
+        this.rule = config.rule;
+        var events = config.events;
+        if (events && events.length) {
+          this.ruleEvents = {};
+          for (var i = 0, eventName; eventName = events[i]; i++) this.ruleEvents[eventName] = true;
+        }
+        cleaner.add(this);
+      },
+      resolve: function(object) {
+        var ret = this.rule(object);
+        var idx = this.ruleRet_.indexOf(ret);
+        if (idx == -1) {
+          this.ruleRet_.push(ret);
+          idx = this.templates_.push(new this.templateClass(ret)) - 1;
+        }
+        return this.templates_[idx];
+      },
+      destroy: function() {
+        this.rule = null;
+        this.templates_ = null;
+        this.ruleRet_ = null;
+      }
+    });
+    function switcher(events, rule) {
+      if (!rule) {
+        rule = events;
+        events = null;
+      }
+      if (typeof events == "string") events = events.split(/\s+/);
+      return new TemplateSwitchConfig({
+        rule: rule,
+        events: events
+      });
+    }
+    cleaner.add({
+      destroy: function() {
+        for (var i = 0, template; template = templateList[i]; i++) template.destroy();
+        templateList = null;
+      }
+    });
+    module.exports = {
+      DECLARATION_VERSION: DECLARATION_VERSION,
+      TYPE_ELEMENT: consts.TYPE_ELEMENT,
+      TYPE_ATTRIBUTE: consts.TYPE_ATTRIBUTE,
+      TYPE_ATTRIBUTE_CLASS: consts.TYPE_ATTRIBUTE_CLASS,
+      TYPE_ATTRIBUTE_STYLE: consts.TYPE_ATTRIBUTE_STYLE,
+      TYPE_ATTRIBUTE_EVENT: consts.TYPE_ATTRIBUTE_EVENT,
+      TYPE_TEXT: consts.TYPE_TEXT,
+      TYPE_COMMENT: consts.TYPE_COMMENT,
+      TOKEN_TYPE: consts.TOKEN_TYPE,
+      TOKEN_BINDINGS: consts.TOKEN_BINDINGS,
+      TOKEN_REFS: consts.TOKEN_REFS,
+      ATTR_NAME: consts.ATTR_NAME,
+      ATTR_VALUE: consts.ATTR_VALUE,
+      ATTR_NAME_BY_TYPE: consts.ATTR_NAME_BY_TYPE,
+      CLASS_BINDING_ENUM: consts.CLASS_BINDING_ENUM,
+      CLASS_BINDING_BOOL: consts.CLASS_BINDING_BOOL,
+      ELEMENT_NAME: consts.ELEMENT_NAME,
+      ELEMENT_ATTRS: consts.ELEMENT_ATTRIBUTES_AND_CHILDREN,
+      ELEMENT_ATTRIBUTES_AND_CHILDREN: consts.ELEMENT_ATTRIBUTES_AND_CHILDREN,
+      TEXT_VALUE: consts.TEXT_VALUE,
+      COMMENT_VALUE: consts.COMMENT_VALUE,
+      TemplateSwitchConfig: TemplateSwitchConfig,
+      TemplateSwitcher: TemplateSwitcher,
+      Template: Template,
+      switcher: switcher,
+      getDeclFromSource: getDeclFromSource,
+      makeDeclaration: makeDeclaration,
+      resolveResource: resolveResource,
+      setIsolatePrefixGenerator: setIsolatePrefixGenerator,
+      getDebugInfoById: store.getDebugInfoById,
+      getTemplateCount: function() {
+        return templateList.length;
+      },
+      resolveTemplateById: store.resolveTemplateById,
+      resolveObjectById: store.resolveObjectById,
+      resolveTmplById: store.resolveTmplById,
+      SourceWrapper: theme.SourceWrapper,
+      Theme: theme.Theme,
+      theme: theme.theme,
+      getThemeList: theme.getThemeList,
+      currentTheme: theme.currentTheme,
+      setTheme: theme.setTheme,
+      onThemeChange: theme.onThemeChange,
+      define: theme.define,
+      get: theme.get,
+      getPathList: theme.getPathList
+    };
+  },
+  "3.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
     var MARKER = "basisTemplateId_" + basis.genUID();
     var TYPE_ELEMENT = 1;
     var TYPE_ATTRIBUTE = 2;
@@ -357,14 +611,14 @@ var __resources__ = {
       CLONE_NORMALIZATION_TEXT_BUG: CLONE_NORMALIZATION_TEXT_BUG
     };
   },
-  "3.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+  "4.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
     var hasOwnProperty = Object.prototype.hasOwnProperty;
     var arraySearch = basis.array.search;
     var arrayAdd = basis.array.add;
     var arrayRemove = basis.array.remove;
-    var tokenize = basis.require("./c.js");
-    var isolateCss = basis.require("./d.js");
-    var consts = basis.require("./2.js");
+    var tokenize = basis.require("./e.js");
+    var isolateCss = basis.require("./f.js");
+    var consts = basis.require("./3.js");
     var TYPE_ELEMENT = consts.TYPE_ELEMENT;
     var TYPE_ATTRIBUTE = consts.TYPE_ATTRIBUTE;
     var TYPE_ATTRIBUTE_CLASS = consts.TYPE_ATTRIBUTE_CLASS;
@@ -384,6 +638,7 @@ var __resources__ = {
     var TEXT_VALUE = consts.TEXT_VALUE;
     var CLASS_BINDING_ENUM = consts.CLASS_BINDING_ENUM;
     var CLASS_BINDING_BOOL = consts.CLASS_BINDING_BOOL;
+    var CLASS_BINDING_INVERT = consts.CLASS_BINDING_INVERT;
     var IDENT = /^[a-z_][a-z0-9_\-]*$/i;
     var ATTR_EVENT_RX = /^event-(.+)$/;
     var Template = function() {};
@@ -532,6 +787,15 @@ var __resources__ = {
           if (attr.name == "show" || attr.name == "hide") setStylePropertyBinding(host, attr, "display", "show", "display: none;");
           if (attr.name == "visible" || attr.name == "hidden") setStylePropertyBinding(host, attr, "visibility", "visible", "visibility: hidden;");
         }
+        function addRoleAttribute(host, role) {
+          var sourceToken = arguments[2];
+          if (!/[\/\(\)]/.test(role)) {
+            var item = [ TYPE_ATTRIBUTE, [ [ "$role" ], [ 0, role ? "/" + role : "" ] ], 0, "role-marker" ];
+            item.sourceToken = sourceToken;
+            addTokenLocation(item, sourceToken);
+            host.push(item);
+          } else addTemplateWarn(template, options, 'Value for role was ignored as value can\'t contains ["/", "(", ")"]: ' + role, sourceToken.loc);
+        }
         function processAttrs(token, declToken) {
           var result = [];
           var styleAttr;
@@ -554,6 +818,9 @@ var __resources__ = {
                 case "hidden":
                   visibilityAttr = attr;
                   break;
+                case "role":
+                  addRoleAttribute(result, attr.value || "", attr);
+                  break;
               }
               continue;
             }
@@ -561,8 +828,8 @@ var __resources__ = {
               item = m[1] == attr.value ? [ TYPE_ATTRIBUTE_EVENT, m[1] ] : [ TYPE_ATTRIBUTE_EVENT, m[1], attr.value ];
             } else {
               item = [ attr.type, attr.binding, 0 ];
-              if (attr.type == 2) item.push(getTokenName(attr));
-              if (attr.value && (!options.optimizeSize || !attr.binding || attr.type != 2)) item.push(attr.value);
+              if (attr.type == TYPE_ATTRIBUTE) item.push(getTokenName(attr));
+              if (attr.value && (!options.optimizeSize || !attr.binding || attr.type != TYPE_ATTRIBUTE)) item.push(attr.value);
               if (attr.type == TYPE_ATTRIBUTE_STYLE) styleAttr = item;
             }
             item.valueLocMap = getAttributeValueLocationMap(attr);
@@ -800,6 +1067,12 @@ var __resources__ = {
                         case "bool":
                           define = [ bindingName, CLASS_BINDING_BOOL, defineName, elAttrs["default"] == "true" ? 1 : 0 ];
                           addStateInfo(bindingName, "bool", true);
+                          if ("default" in elAttrs && !elAttrs["default"]) addTemplateWarn(template, options, "Bool <b:define> has no value as default (value ignored)", elAttrs_["default"] && elAttrs_["default"].loc);
+                          break;
+                        case "invert":
+                          define = [ bindingName, CLASS_BINDING_INVERT, defineName, !elAttrs["default"] || elAttrs["default"] == "true" ? 1 : 0 ];
+                          addStateInfo(bindingName, "invert", false);
+                          if ("default" in elAttrs && !elAttrs["default"]) addTemplateWarn(template, options, "Invert <b:define> has no value as default (value ignored)", elAttrs_["default"] && elAttrs_["default"].loc);
                           break;
                         case "enum":
                           if ("values" in elAttrs == false) {
@@ -910,6 +1183,16 @@ var __resources__ = {
                             var tokenRef = tokenRefMap.element;
                             var token = tokenRef && tokenRef.token;
                             if (token && token[TOKEN_TYPE] == TYPE_ELEMENT) applyShowHideAttribute(token, elAttrs_[includeAttrName]);
+                            break;
+                          case "role":
+                            var role = elAttrs_.role.value;
+                            if (role) {
+                              if (!/[\/\(\)]/.test(role)) {
+                                var loc;
+                                loc = getLocation(template, elAttrs_.role.loc);
+                                applyRole(decl.tokens, role, elAttrs_.role, loc);
+                              } else addTemplateWarn(template, options, 'Value for role was ignored as value can\'t contains ["/", "(", ")"]: ' + role, elAttrs_.role.loc);
+                            }
                             break;
                         }
                         for (var j = 0, child; child = instructions[j]; j++) {
@@ -1043,6 +1326,24 @@ var __resources__ = {
                                 var token = tokenRef && tokenRef.token;
                                 if (token) removeTokenRef(token, childAttrs.name || childAttrs.ref);
                                 break;
+                              case "role":
+                              case "set-role":
+                                var childAttrs = tokenAttrs(child);
+                                var ref = "ref" in childAttrs ? childAttrs.ref : "element";
+                                var tokenRef = ref && tokenRefMap[ref];
+                                var token = tokenRef && tokenRef.token;
+                                if (token) {
+                                  arrayRemove(token, getAttrByName(token, "role-marker"));
+                                  addRoleAttribute(token, childAttrs.value || "", child);
+                                }
+                                break;
+                              case "remove-role":
+                                var childAttrs = tokenAttrs(child);
+                                var ref = "ref" in childAttrs ? childAttrs.ref : "element";
+                                var tokenRef = ref && tokenRefMap[ref];
+                                var token = tokenRef && tokenRef.token;
+                                if (token) arrayRemove(token, getAttrByName(token, "role-marker"));
+                                break;
                               default:
                                 addTemplateWarn(template, options, "Unknown instruction tag: <b:" + child.name + ">", child.loc);
                             }
@@ -1097,7 +1398,7 @@ var __resources__ = {
         if (typeof value == "string") {
           var parts = value.split(":");
           var key = parts[1];
-          if (parts[0] == "l10n") {
+          if (key && parts[0] == "l10n") {
             if (parts.length == 2 && key.indexOf("@") == -1) {
               if (!dictURI) return false;
               key = key + "@" + dictURI;
@@ -1107,6 +1408,25 @@ var __resources__ = {
           }
         }
         return value;
+      }
+      function applyRole(tokens, role, sourceToken, location, stIdx) {
+        for (var i = stIdx || 0, token; token = tokens[i]; i++) {
+          var tokenType = token[TOKEN_TYPE];
+          switch (tokenType) {
+            case TYPE_ELEMENT:
+              applyRole(token, role, sourceToken, location, ELEMENT_ATTRIBUTES_AND_CHILDREN);
+              break;
+            case TYPE_ATTRIBUTE:
+              if (token[ATTR_NAME] == "role-marker") {
+                var roleExpression = token[TOKEN_BINDINGS][1];
+                var currentRole = roleExpression[1];
+                roleExpression[1] = "/" + role + (currentRole ? "/" + currentRole : "");
+                token.sourceToken = sourceToken;
+                token.loc = location;
+              }
+              break;
+          }
+        }
       }
       function normalizeRefs(tokens, isolate, map, stIdx) {
         function processName(name) {
@@ -1152,7 +1472,7 @@ var __resources__ = {
         for (var i = stIdx || 0, token; token = tokens[i]; i++) {
           var tokenType = token[TOKEN_TYPE];
           var bindings = token[TOKEN_BINDINGS];
-          switch (token[TOKEN_TYPE]) {
+          switch (tokenType) {
             case TYPE_ELEMENT:
               applyDefines(token, template, options, ELEMENT_ATTRIBUTES_AND_CHILDREN);
               break;
@@ -1169,10 +1489,17 @@ var __resources__ = {
             case TYPE_ATTRIBUTE:
               if (bindings) {
                 var array = bindings[0];
-                for (var j = 0; j < array.length; j++) {
+                for (var j = array.length - 1; j >= 0; j--) {
                   var binding = absl10n(array[j], options.dictURI, template.l10n);
-                  array[j] = binding === false ? "{" + array[j] + "}" : binding;
-                  if (binding === false) addTemplateWarn(template, options, "Dictionary for l10n binding on attribute can't be resolved: {" + array[j] + "}", token.loc);
+                  if (binding === false) {
+                    addTemplateWarn(template, options, "Dictionary for l10n binding on attribute can't be resolved: {" + array[j] + "}", token.loc);
+                    var expr = bindings[1];
+                    for (var k = 0; k < expr.length; k++) if (typeof expr[k] == "number") {
+                      if (expr[k] == j) expr[k] = "{" + array[j] + "}"; else if (expr[k] > j) expr[k] = expr[k] - 1;
+                    }
+                    array.splice(j, 1);
+                    if (!array.length) token[TOKEN_BINDINGS] = 0;
+                  } else array[j] = binding;
                 }
               }
               break;
@@ -1401,18 +1728,21 @@ var __resources__ = {
       if (typeof result == "string") result = makeDeclaration(result, baseURI, options, sourceUrl, source);
       return result;
     }
-    basis.resource("./1.js").ready(function(exports) {
+    basis.resource("./2.js").ready(function(exports) {
       resolveResource = exports.resolveResource;
       Template = exports.Template;
     });
     module.exports = {
       VERSION: 3,
       makeDeclaration: makeDeclaration,
-      getDeclFromSource: getDeclFromSource
+      getDeclFromSource: getDeclFromSource,
+      setIsolatePrefixGenerator: function(fn) {
+        genIsolateMarker = fn;
+      }
     };
   },
-  "c.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
-    var consts = basis.require("./2.js");
+  "e.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+    var consts = basis.require("./3.js");
     var TYPE_ELEMENT = consts.TYPE_ELEMENT;
     var TYPE_ATTRIBUTE = consts.TYPE_ATTRIBUTE;
     var TYPE_TEXT = consts.TYPE_TEXT;
@@ -1664,7 +1994,7 @@ var __resources__ = {
           if (parseTag) lastTag = tagStack.pop();
           if (token) lastTag.children.pop();
           if (token = lastTag.children.pop()) {
-            if (token.type == TYPE_TEXT && !token.refs) textStateEndPos -= "len" in token ? token.len : token.value.length; else lastTag.children.push(token);
+            if (token.type == TYPE_TEXT && !token.refs) textStateEndPos -= token.value.length; else lastTag.children.push(token);
           }
           parseTag = false;
           state = TEXT;
@@ -1679,7 +2009,6 @@ var __resources__ = {
               sourceText = sourceText.replace(/\s*(\r\n?|\n\r?)\s*/g, "");
               if (sourceText) lastTag.children.push({
                 type: TYPE_TEXT,
-                len: sourceText.length,
                 value: sourceText,
                 range: {
                   start_: textStateEndPos,
@@ -1887,7 +2216,7 @@ var __resources__ = {
     }
     module.exports = tokenize;
   },
-  "d.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+  "f.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
     var CSS_CLASSNAME_START = /^\-?([_a-z]|[^\x00-\xb1]|\\[0-9a-f]{1,6}(\r\n|[ \n\r\t\f])?|\\[^\n\r\f0-9a-f])/i;
     var CSS_CLASSNAME_START_MAXLEN = 8;
     var CSS_NESTED_ATRULE = /^(media|supports|document)\b/i;
@@ -1968,7 +2297,7 @@ var __resources__ = {
       }
       function parseStyleSheet(nested) {
         for (nestedStyleSheet = false; i < len; i++) {
-          if (parseComment() || parseAtRule() || parsePseudo() || parseBraces() || parseClassName()) continue;
+          if (parseComment() || parseAtRule() || parsePseudo() || parseBraces() || parseString() || parseClassName()) continue;
           if (nested && sym[i] == "}") return;
           parseBlock();
         }
@@ -1991,7 +2320,7 @@ var __resources__ = {
     }
     module.exports = isolateCss;
   },
-  "4.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+  "5.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
     var templates = {};
     function add(id, template, instances) {
       templates[id] = {
@@ -2043,286 +2372,52 @@ var __resources__ = {
     };
   },
   "1.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
-    var namespace = this.path;
-    var document = global.document;
-    var Class = basis.Class;
-    var cleaner = basis.cleaner;
-    var path = basis.path;
-    var consts = basis.require("./2.js");
-    var DECLARATION_VERSION = basis.require("./3.js").VERSION;
-    var getDeclFromSource = basis.require("./3.js").getDeclFromSource;
-    var makeDeclaration = basis.require("./3.js").makeDeclaration;
-    var store = basis.require("./4.js");
-    var theme = basis.require("./5.js");
-    var getSourceByPath = theme.get;
-    var templateList = [];
-    var sourceByDocumentId = {};
-    function resolveSourceByDocumentId(sourceId) {
-      var resource = sourceByDocumentId[sourceId];
-      if (!resource) {
-        var host = document.getElementById(sourceId);
-        var source = "";
-        if (host && host.tagName == "SCRIPT" && host.type == "text/basis-template") source = host.textContent || host.text; else if (!host) basis.dev.warn("Template script element with id `" + sourceId + "` not found"); else basis.dev.warn('Template should be declared in <script type="text/basis-template"> element (id `' + sourceId + "`)");
-        resource = sourceByDocumentId[sourceId] = basis.resource.virtual("tmpl", source || "");
-        resource.id = sourceId;
-        resource.url = '<script id="' + sourceId + '"/>';
-      }
-      return resource;
+    var resolveTemplateById = basis.require("./2.js").resolveTemplateById;
+    var HtmlTemplate = basis.require("./7.js").Template;
+    var srcMap = [];
+    var tmplMap = [];
+    function templateWrapper(src) {
+      var index = srcMap.indexOf(src);
+      if (index != -1) return tmplMap[index];
+      var template = new HtmlTemplate(src);
+      srcMap.push(src);
+      tmplMap.push(template);
+      return template;
     }
-    function resolveResource(ref, baseURI) {
-      if (/^#\d+$/.test(ref)) return templateList[ref.substr(1)];
-      if (/^id:/.test(ref)) return resolveSourceByDocumentId(ref.substr(3));
-      if (/^[a-z0-9\.]+$/i.test(ref) && !/\.tmpl$/.test(ref)) return getSourceByPath(ref);
-      return basis.resource(basis.resource.resolveURI(ref, baseURI, '<b:include src="{url}"/>'));
-    }
-    function templateSourceUpdate() {
-      if (this.destroyBuilder) buildTemplate.call(this);
-      var cursor = this;
-      while (cursor = cursor.attaches_) cursor.handler.call(cursor.context);
-    }
-    function buildTemplate() {
-      var declaration = getDeclFromSource(this.source, this.baseURI, false, {
-        isolate: this.getIsolatePrefix()
-      });
-      var destroyBuilder = this.destroyBuilder;
-      var instances = {};
-      var funcs = this.builder(declaration.tokens, instances);
-      this.createInstance = funcs.createInstance;
-      this.clearInstance = funcs.destroyInstance;
-      this.destroyBuilder = funcs.destroy;
-      store.add(this.templateId, this, instances);
-      this.instances_ = instances;
-      this.decl_ = declaration;
-      var newDeps = declaration.deps;
-      var oldDeps = this.deps_;
-      this.deps_ = newDeps;
-      if (oldDeps) for (var i = 0, dep; dep = oldDeps[i]; i++) dep.bindingBridge.detach(dep, buildTemplate, this);
-      if (newDeps) for (var i = 0, dep; dep = newDeps[i]; i++) dep.bindingBridge.attach(dep, buildTemplate, this);
-      var newResources = declaration.resources;
-      var oldResources = this.resources;
-      this.resources = newResources;
-      if (newResources) for (var i = 0, url; url = newResources[i]; i++) {
-        var resource = basis.resource(url).fetch();
-        if (typeof resource.startUse == "function") resource.startUse();
-      }
-      if (oldResources) for (var i = 0, url; url = oldResources[i]; i++) {
-        var resource = basis.resource(url).fetch();
-        if (typeof resource.stopUse == "function") resource.stopUse();
-      }
-      if (destroyBuilder) destroyBuilder(true);
-    }
-    var Template = Class(null, {
-      className: namespace + ".Template",
-      __extend__: function(value) {
-        if (value instanceof Template) return value;
-        if (value instanceof TemplateSwitchConfig) return new TemplateSwitcher(value);
-        return new Template(value);
-      },
-      source: "",
-      baseURI: "",
-      url: "",
-      attaches_: null,
-      init: function(source) {
-        if (templateList.length == 4096) throw "Too many templates (maximum 4096)";
-        this.setSource(source || "");
-        this.templateId = templateList.push(this) - 1;
-      },
-      bindingBridge: {
-        attach: function(template, handler, context) {
-          var cursor = template;
-          while (cursor = cursor.attaches_) if (cursor.handler === handler && cursor.context === context) basis.dev.warn("basis.template.Template#bindingBridge.attach: duplicate handler & context pair");
-          template.attaches_ = {
-            handler: handler,
-            context: context,
-            attaches_: template.attaches_
-          };
-        },
-        detach: function(template, handler, context) {
-          var cursor = template;
-          var prev;
-          while (prev = cursor, cursor = cursor.attaches_) if (cursor.handler === handler && cursor.context === context) {
-            prev.attaches_ = cursor.attaches_;
-            return;
-          }
-          basis.dev.warn("basis.template.Template#bindingBridge.detach: handler & context pair not found, nothing was removed");
-        },
-        get: function(template) {
-          var source = template.source;
-          return source && source.bindingBridge ? source.bindingBridge.get(source) : source;
-        }
-      },
-      createInstance: function(object, actionCallback, updateCallback, bindings, bindingInterface) {
-        buildTemplate.call(this);
-        return this.createInstance(object, actionCallback, updateCallback, bindings, bindingInterface);
-      },
-      clearInstance: function() {},
-      getIsolatePrefix: function() {
-        return "i" + this.templateId + "__";
-      },
-      setSource: function(source) {
-        var oldSource = this.source;
-        if (oldSource != source) {
-          if (typeof source == "string") {
-            var m = source.match(/^([a-z]+):/);
-            if (m) {
-              source = source.substr(m[0].length);
-              switch (m[1]) {
-                case "id":
-                  source = resolveSourceByDocumentId(source);
-                  break;
-                case "path":
-                  source = getSourceByPath(source);
-                  break;
-                default:
-                  basis.dev.warn(namespace + ".Template.setSource: Unknown prefix " + m[1] + " for template source was ingnored.");
-              }
-            }
-          }
-          if (oldSource && oldSource.bindingBridge) {
-            this.url = "";
-            this.baseURI = "";
-            oldSource.bindingBridge.detach(oldSource, templateSourceUpdate, this);
-          }
-          if (source && source.bindingBridge) {
-            if (source.url) {
-              this.url = source.url;
-              this.baseURI = path.dirname(source.url) + "/";
-            }
-            source.bindingBridge.attach(source, templateSourceUpdate, this);
-          }
-          this.source = source;
-          templateSourceUpdate.call(this);
-        }
-      },
-      destroy: function() {
-        if (this.destroyBuilder) {
-          store.remove(this.templateId);
-          this.destroyBuilder();
-        }
-        this.attaches_ = null;
-        this.createInstance = null;
-        this.resources = null;
-        this.source = null;
-        this.instances_ = null;
-        this.decl_ = null;
-      }
-    });
-    var TemplateSwitchConfig = function(config) {
-      basis.object.extend(this, config);
-    };
-    var TemplateSwitcher = basis.Class(null, {
-      className: namespace + ".TemplateSwitcher",
-      ruleRet_: null,
-      templates_: null,
-      templateClass: Template,
-      ruleEvents: null,
-      rule: String,
+    global.bt = module.exports = basis.object.extend(templateWrapper, {
       init: function(config) {
-        this.ruleRet_ = [];
-        this.templates_ = [];
-        this.rule = config.rule;
-        var events = config.events;
-        if (events && events.length) {
-          this.ruleEvents = {};
-          for (var i = 0, eventName; eventName = events[i]; i++) this.ruleEvents[eventName] = true;
+        if (!config) return this;
+        if (config.noConflict) {
+          delete global.bt;
+          return this;
         }
-        cleaner.add(this);
       },
-      resolve: function(object) {
-        var ret = this.rule(object);
-        var idx = this.ruleRet_.indexOf(ret);
-        if (idx == -1) {
-          this.ruleRet_.push(ret);
-          idx = this.templates_.push(new this.templateClass(ret)) - 1;
+      dispose: function(tmpl) {
+        var template = resolveTemplateById(tmpl.templateId_);
+        if (!template) {
+          basis.dev.warn("Template is not resolved for ", tmpl);
+          return;
         }
-        return this.templates_[idx];
+        template.clearInstance(tmpl);
       },
-      destroy: function() {
-        this.rule = null;
-        this.templates_ = null;
-        this.ruleRet_ = null;
-      }
+      template: templateWrapper
     });
-    function switcher(events, rule) {
-      if (!rule) {
-        rule = events;
-        events = null;
-      }
-      if (typeof events == "string") events = events.split(/\s+/);
-      return new TemplateSwitchConfig({
-        rule: rule,
-        events: events
-      });
-    }
-    cleaner.add({
-      destroy: function() {
-        for (var i = 0, template; template = templateList[i]; i++) template.destroy();
-        templateList = null;
-      }
-    });
-    module.exports = {
-      DECLARATION_VERSION: DECLARATION_VERSION,
-      TYPE_ELEMENT: consts.TYPE_ELEMENT,
-      TYPE_ATTRIBUTE: consts.TYPE_ATTRIBUTE,
-      TYPE_ATTRIBUTE_CLASS: consts.TYPE_ATTRIBUTE_CLASS,
-      TYPE_ATTRIBUTE_STYLE: consts.TYPE_ATTRIBUTE_STYLE,
-      TYPE_ATTRIBUTE_EVENT: consts.TYPE_ATTRIBUTE_EVENT,
-      TYPE_TEXT: consts.TYPE_TEXT,
-      TYPE_COMMENT: consts.TYPE_COMMENT,
-      TOKEN_TYPE: consts.TOKEN_TYPE,
-      TOKEN_BINDINGS: consts.TOKEN_BINDINGS,
-      TOKEN_REFS: consts.TOKEN_REFS,
-      ATTR_NAME: consts.ATTR_NAME,
-      ATTR_VALUE: consts.ATTR_VALUE,
-      ATTR_NAME_BY_TYPE: consts.ATTR_NAME_BY_TYPE,
-      CLASS_BINDING_ENUM: consts.CLASS_BINDING_ENUM,
-      CLASS_BINDING_BOOL: consts.CLASS_BINDING_BOOL,
-      ELEMENT_NAME: consts.ELEMENT_NAME,
-      ELEMENT_ATTRS: consts.ELEMENT_ATTRIBUTES_AND_CHILDREN,
-      ELEMENT_ATTRIBUTES_AND_CHILDREN: consts.ELEMENT_ATTRIBUTES_AND_CHILDREN,
-      TEXT_VALUE: consts.TEXT_VALUE,
-      COMMENT_VALUE: consts.COMMENT_VALUE,
-      TemplateSwitchConfig: TemplateSwitchConfig,
-      TemplateSwitcher: TemplateSwitcher,
-      Template: Template,
-      switcher: switcher,
-      getDeclFromSource: getDeclFromSource,
-      makeDeclaration: makeDeclaration,
-      resolveResource: resolveResource,
-      getDebugInfoById: store.getDebugInfoById,
-      getTemplateCount: function() {
-        return templateList.length;
-      },
-      resolveTemplateById: store.resolveTemplateById,
-      resolveObjectById: store.resolveObjectById,
-      resolveTmplById: store.resolveTmplById,
-      SourceWrapper: theme.SourceWrapper,
-      Theme: theme.Theme,
-      theme: theme.theme,
-      getThemeList: theme.getThemeList,
-      currentTheme: theme.currentTheme,
-      setTheme: theme.setTheme,
-      onThemeChange: theme.onThemeChange,
-      define: theme.define,
-      get: theme.get,
-      getPathList: theme.getPathList
-    };
   },
-  "6.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
-    var namespace = this.path;
+  "7.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+    var namespace = "basis.template.html";
     var document = global.document;
     var Node = global.Node;
     var camelize = basis.string.camelize;
-    var isMarkupToken = basis.require("./7.js").isMarkupToken;
-    var getL10nToken = basis.require("./7.js").token;
-    var getFunctions = basis.require("./9.js").getFunctions;
-    var basisTemplate = basis.require("./1.js");
+    var isMarkupToken = basis.require("./8.js").isMarkupToken;
+    var getL10nToken = basis.require("./8.js").token;
+    var getFunctions = basis.require("./a.js").getFunctions;
+    var basisTemplate = basis.require("./2.js");
     var TemplateSwitchConfig = basisTemplate.TemplateSwitchConfig;
     var TemplateSwitcher = basisTemplate.TemplateSwitcher;
     var Template = basisTemplate.Template;
     var getSourceByPath = basisTemplate.get;
-    var buildDOM = basis.require("./a.js");
-    var CLONE_NORMALIZATION_TEXT_BUG = basis.require("./2.js").CLONE_NORMALIZATION_TEXT_BUG;
+    var buildDOM = basis.require("./c.js");
+    var CLONE_NORMALIZATION_TEXT_BUG = basis.require("./3.js").CLONE_NORMALIZATION_TEXT_BUG;
     var IS_SET_STYLE_SAFE = !!function() {
       try {
         return document.documentElement.style.color = "x";
@@ -2427,8 +2522,11 @@ var __resources__ = {
         if (newNode === domRef) domRef.nodeValue = String(newValue);
         return newNode;
       };
-      var bind_attrClass = CLASSLIST_SUPPORTED ? function(domRef, oldClass, newValue, anim) {
-        var newClass = newValue ? newValue : "";
+      var bind_attrClass = CLASSLIST_SUPPORTED ? normalAttrClass : legacyAttrClass;
+      function normalAttrClass(domRef, oldClass, newValue, anim) {
+        var classList = domRef.classList;
+        if (!classList) return legacyAttrClass(domRef, oldClass, newValue, anim);
+        var newClass = newValue || "";
         if (newClass != oldClass) {
           if (oldClass) domRef.classList.remove(oldClass);
           if (newClass) {
@@ -2442,8 +2540,9 @@ var __resources__ = {
           }
         }
         return newClass;
-      } : function(domRef, oldClass, newValue, anim) {
-        var newClass = newValue ? newValue : "";
+      }
+      function legacyAttrClass(domRef, oldClass, newValue, anim) {
+        var newClass = newValue || "";
         if (newClass != oldClass) {
           var className = domRef.className;
           var classNameIsObject = typeof className != "string";
@@ -2465,7 +2564,7 @@ var __resources__ = {
           if (classNameIsObject) domRef.className.baseVal = classList.join(" "); else domRef.className = classList.join(" ");
         }
         return newClass;
-      };
+      }
       var bind_attrStyle = IS_SET_STYLE_SAFE ? function(domRef, propertyName, oldValue, newValue) {
         if (oldValue !== newValue) domRef.style[camelize(propertyName)] = newValue;
         return newValue;
@@ -2480,6 +2579,12 @@ var __resources__ = {
       var bind_attr = function(domRef, attrName, oldValue, newValue) {
         if (oldValue !== newValue) {
           if (newValue) domRef.setAttribute(attrName, newValue); else domRef.removeAttribute(attrName);
+        }
+        return newValue;
+      };
+      var bind_attrNS = function(domRef, namespace, attrName, oldValue, newValue) {
+        if (oldValue !== newValue) {
+          if (newValue) domRef.setAttributeNS(namespace, attrName, newValue); else domRef.removeAttributeNS(namespace, attrName);
         }
         return newValue;
       };
@@ -2610,6 +2715,7 @@ var __resources__ = {
         bind_element: bind_element,
         bind_comment: bind_comment,
         bind_attr: bind_attr,
+        bind_attrNS: bind_attrNS,
         bind_attrClass: bind_attrClass,
         bind_attrStyle: bind_attrStyle,
         resolve: resolveValue,
@@ -2731,13 +2837,18 @@ var __resources__ = {
       TemplateSwitcher: HtmlTemplateSwitcher
     };
   },
-  "7.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
-    var namespace = this.path;
+  "8.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+    var namespace = "basis.l10n";
     var Class = basis.Class;
-    var Emitter = basis.require("./8.js").Emitter;
+    var Emitter = basis.require("./9.js").Emitter;
     var hasOwnProperty = Object.prototype.hasOwnProperty;
+    var autoFetchDictionaryResource = true;
     basis.resource.extensions[".l10n"] = function(content, url) {
-      return resolveDictionary(url).update(basis.resource.extensions[".json"](content, url));
+      var dictionary;
+      autoFetchDictionaryResource = false;
+      dictionary = resolveDictionary(url);
+      autoFetchDictionaryResource = true;
+      return dictionary.update(basis.resource.extensions[".json"](content, url));
     };
     var tokenIndex = [];
     var tokenComputeFn = {};
@@ -2944,7 +3055,7 @@ var __resources__ = {
             dictionaryByUrl[resource.url] = this;
             createDictionaryNotifier.set(resource.url);
           }
-          resource.fetch();
+          if (autoFetchDictionaryResource) resource.fetch();
         } else {
           this.update(content || {});
         }
@@ -3175,8 +3286,8 @@ var __resources__ = {
       } catch (e) {}
     })();
   },
-  "8.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
-    var namespace = this.path;
+  "9.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+    var namespace = "basis.event";
     var Class = basis.Class;
     var NULL_HANDLER = {};
     var events = {};
@@ -3243,6 +3354,24 @@ var __resources__ = {
     var Emitter = Class(null, {
       className: namespace + ".Emitter",
       extendConstructor_: true,
+      propertyDescriptors: Class.customExtendProperty({
+        basisObjectId: true,
+        propertyDescriptors: false,
+        handler: false,
+        listen: false
+      }, function(result, extension) {
+        for (var property in extension) {
+          var value = extension[property];
+          if (value === true || value == "<static>") value = {
+            isStatic: true
+          }; else if (value === false) value = {
+            isPrivate: true
+          }; else if (typeof value == "string") value = {
+            events: value
+          };
+          result[property] = value;
+        }
+      }),
       handler: null,
       emit_destroy: createDispatcher("destroy"),
       listen: Class.nestedExtendProperty(),
@@ -3300,9 +3429,10 @@ var __resources__ = {
       Emitter: Emitter
     };
   },
-  "9.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+  "a.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
     var hasOwnProperty = Object.prototype.hasOwnProperty;
-    var consts = basis.require("./2.js");
+    var consts = basis.require("./3.js");
+    var namespaces = basis.require("./b.js");
     var MARKER = consts.MARKER;
     var TYPE_ELEMENT = consts.TYPE_ELEMENT;
     var TYPE_ATTRIBUTE = consts.TYPE_ATTRIBUTE;
@@ -3320,6 +3450,7 @@ var __resources__ = {
     var ELEMENT_ATTRIBUTES_AND_CHILDREN = consts.ELEMENT_ATTRIBUTES_AND_CHILDREN;
     var CLASS_BINDING_ENUM = consts.CLASS_BINDING_ENUM;
     var CLASS_BINDING_BOOL = consts.CLASS_BINDING_BOOL;
+    var CLASS_BINDING_INVERT = consts.CLASS_BINDING_INVERT;
     var inlineSeed = 1;
     var tmplFunctions = {};
     var SET_NONELEMENT_PROPERTY_SUPPORT = function() {
@@ -3475,8 +3606,13 @@ var __resources__ = {
       function simpleStringify(val) {
         return typeof val == "string" ? quoteString(val) : val;
       }
+      function stringifyBindingNames(val) {
+        if (val.indexOf("l10n:") == 0) val = this[val.substr(5)] || val;
+        return quoteString(val);
+      }
       function buildAttrExpression(binding, special, l10n) {
         var expression = [];
+        var cond = [];
         var symbols = binding[5];
         var dictionary = binding[4];
         var exprVar;
@@ -3487,18 +3623,25 @@ var __resources__ = {
             colonPos = exprVar.indexOf(":");
             if (colonPos == -1) {
               expression.push(special == "l10n" ? '"{' + exprVar + '}"' : special == "bool" ? "(__" + exprVar + '||"")' : "__" + exprVar);
+              if (!special) cond.push("__" + exprVar + "!==UNSET&&__" + exprVar + "!==undefined");
             } else {
               var bindingName = null;
               var l10nPath = exprVar.substr(colonPos + 1).replace(L10N_BINDING, function(m, name) {
                 bindingName = name;
                 return "";
               });
-              if (bindingName) expression.push(l10n[exprVar.substr(colonPos + 1)]); else expression.push('l10n["' + l10nPath + '"]');
+              if (bindingName) {
+                if (l10n === false) return false;
+                expression.push(l10n[exprVar.substr(colonPos + 1)]);
+                if (!special) cond.push(l10n[exprVar.substr(colonPos + 1)] + "!==undefined");
+              } else expression.push('l10n["' + l10nPath + '"]');
             }
           }
         }
         if (expression.length == 1) expression.push('""');
-        return expression.join("+");
+        expression = expression.join("+");
+        if (!special && cond.length) expression = cond.join("&&") + "?(" + expression + '):""';
+        return expression;
       }
       return function(bindings) {
         function putBindCode(type) {
@@ -3510,8 +3653,8 @@ var __resources__ = {
         var bindVar;
         var bindVarSeed = 0;
         var varList = [];
-        var result = [];
         var bindingsWoL10nCompute = [];
+        var l10nComputeBindings = [];
         var varName;
         var l10nMap;
         var l10nCompute = [];
@@ -3520,14 +3663,9 @@ var __resources__ = {
         var attrExprId;
         var attrExprMap = {};
         var debugList = [];
-        var toolsUsed = {
-          resolve: true
-        };
+        var toolsUsed = {};
         for (var i = 0, binding; binding = bindings[i]; i++) {
-          var bindType = binding[0];
-          var domRef = binding[1];
           var bindName = binding[2];
-          var nodeBindingProhibited = binding[3];
           var namePart = bindName.split(":");
           if (namePart[0] == "l10n" && namePart[1]) {
             var l10nFullPath = namePart[1];
@@ -3537,6 +3675,7 @@ var __resources__ = {
               return "";
             });
             if (l10nBinding) {
+              l10nComputeBindings.push(binding);
               if (l10nFullPath in l10nBindings == false) {
                 varName = "$l10n_" + l10nBindSeed++;
                 l10nBindings[l10nFullPath] = varName;
@@ -3545,32 +3684,45 @@ var __resources__ = {
                 bindCode = bindMap[l10nBinding];
                 if (!bindCode) {
                   bindCode = bindMap[l10nBinding] = [];
-                  varList.push("__" + l10nBinding);
+                  varList.push("__" + l10nBinding + "=UNSET");
                 }
                 bindCode.push(varName + ".set(__" + l10nBinding + ");");
-              }
-              bindName = l10nBindings[l10nFullPath];
-              bindVar = "_" + bindVarSeed++;
-              varName = "__" + bindName;
-              bindCode = bindMap[bindName];
-              if (!bindCode) {
-                bindCode = bindMap[bindName] = [];
-                varList.push(varName);
-              }
-              if (bindType == TYPE_TEXT) {
-                debugList.push("{" + [ 'binding:"' + bindName + '"', "dom:" + domRef, "val:" + bindVar, "l10n:true", "attachment:" + bindName ] + "}");
-                varList.push(bindVar + "=" + domRef);
-                putBindCode(bindFunctions[bindType], domRef, bindVar, "value", nodeBindingProhibited);
-              } else {
-                attrName = '"' + binding[ATTR_NAME] + '"';
-                debugList.push("{" + [ 'binding:"' + l10nFullPath + '"', "dom:" + domRef, "attr:" + attrName, "val:" + bindVar, "l10n:true", "attachment:" + bindName ] + "}");
-                varList.push(bindVar);
-                putBindCode("bind_attr", domRef, attrName, bindVar, buildAttrExpression(binding, false, l10nBindings));
               }
               continue;
             }
           }
           bindingsWoL10nCompute.push(binding);
+        }
+        for (var i = 0, binding; binding = l10nComputeBindings[i]; i++) {
+          var bindType = binding[0];
+          var domRef = binding[1];
+          var bindName = binding[2];
+          var nodeBindingProhibited = binding[3];
+          var l10nFullPath = bindName.split(":")[1];
+          bindName = l10nBindings[l10nFullPath];
+          bindVar = "_" + bindVarSeed++;
+          varName = "__" + bindName;
+          bindCode = bindMap[bindName];
+          if (!bindCode) {
+            bindCode = bindMap[bindName] = [];
+            varList.push(varName);
+          }
+          if (bindType == TYPE_TEXT) {
+            debugList.push("{" + [ 'binding:"' + bindName + '"', "dom:" + domRef, "val:" + bindVar, "l10n:true", "attachment:" + bindName ] + "}");
+            varList.push(bindVar + "=" + domRef);
+            putBindCode(bindFunctions[bindType], domRef, bindVar, "value", nodeBindingProhibited);
+          } else {
+            var expr = buildAttrExpression(binding, false, l10nBindings);
+            attrExprId = binding[7];
+            if (!attrExprMap[attrExprId]) {
+              varList.push(bindVar);
+              attrExprMap[attrExprId] = bindVar;
+            }
+            bindVar = attrExprMap[attrExprId];
+            attrName = '"' + binding[ATTR_NAME] + '"';
+            debugList.push("{" + [ 'binding:"' + bindName + '"', "raw:" + bindName + ".get()", "l10n:true", 'type:"l10n"', "expr:[[" + binding[5].map(simpleStringify) + "],[" + binding[4].map(simpleStringify) + "],[" + binding[4].map(stringifyBindingNames, l10nBindings) + "]]", "dom:" + domRef, "attr:" + attrName, "val:" + bindVar, "attachment:" + bindName ] + "}");
+            putBindCode("bind_attr", domRef, attrName, bindVar, expr);
+          }
         }
         for (var i = 0, binding; binding = bindingsWoL10nCompute[i]; i++) {
           var bindType = binding[0];
@@ -3613,12 +3765,15 @@ var __resources__ = {
               }
               continue;
             } else {
-              l10nMap[l10nName].push("bind_attr(" + [ domRef, '"' + binding[ATTR_NAME] + '"', "NaN", buildAttrExpression(binding, "l10n", l10nBindings) ] + ");");
+              var expr = buildAttrExpression(binding, "l10n", false);
+              if (expr !== false) {
+                l10nMap[l10nName].push("bind_attr(" + [ domRef, '"' + binding[ATTR_NAME] + '"', "NaN", expr ] + ");");
+              }
             }
           }
           if (!bindCode) {
             bindCode = bindMap[bindName] = [];
-            varList.push(varName);
+            varList.push(varName + "=UNSET");
           }
           if (bindType != TYPE_ATTRIBUTE) {
             debugList.push("{" + [ 'binding:"' + bindName + '"', "dom:" + domRef, "val:" + (bindCode.nodeBind ? varName : bindVar), "updates:$$" + bindName, 'attachment:instance.attaches&&instance.attaches["' + bindName + '"]&&instance.attaches["' + bindName + '"].value' ] + "}");
@@ -3639,6 +3794,10 @@ var __resources__ = {
           } else {
             var attrName = binding[ATTR_NAME];
             switch (attrName) {
+              case "role-marker":
+                varList.push(bindVar + '=""');
+                putBindCode("bind_attr", domRef, '"' + attrName + '"', bindVar, "value?value" + (binding[5][1] ? "+" + quoteString(binding[5][1]) : "") + ':""');
+                break;
               case "class":
                 var defaultExpr = "";
                 var valueExpr = "value";
@@ -3646,12 +3805,13 @@ var __resources__ = {
                 var defaultValue = binding[7];
                 switch (bindingType) {
                   case CLASS_BINDING_BOOL:
+                  case CLASS_BINDING_INVERT:
                     var values = [ binding[6] ];
                     var prefix = binding[4];
                     var classes = Array.isArray(prefix) ? prefix : values.map(function(val) {
                       return prefix + val;
                     });
-                    valueExpr = 'value?"' + classes[0] + '":""';
+                    valueExpr = (bindingType == CLASS_BINDING_INVERT ? "!" : "") + 'value?"' + classes[0] + '":""';
                     if (defaultValue) defaultExpr = classes[defaultValue - 1];
                     break;
                   case CLASS_BINDING_ENUM:
@@ -3671,10 +3831,10 @@ var __resources__ = {
                 }
                 varList.push(bindVar + '="' + defaultExpr + '"');
                 putBindCode("bind_attrClass", domRef, bindVar, valueExpr, anim);
-                debugList.push("{" + [ 'binding:"' + bindName + '"', "raw:__" + bindName, 'prefix:"' + "???" + '"', "anim:" + anim, "dom:" + domRef, 'attr:"' + attrName + '"', "val:" + bindVar, 'attachment:instance.attaches&&instance.attaches["' + bindName + '"]&&instance.attaches["' + bindName + '"].value' ] + "}");
+                debugList.push("{" + [ 'binding:"' + bindName + '"', "raw:__" + bindName, 'prefix:"' + prefix + '"', "anim:" + anim, "dom:" + domRef, 'attr:"' + attrName + '"', "val:" + bindVar, 'attachment:instance.attaches&&instance.attaches["' + bindName + '"]&&instance.attaches["' + bindName + '"].value' ] + "}");
                 break;
               case "style":
-                var expr = buildAttrExpression(binding, false, l10nBindings);
+                var expr = buildAttrExpression(binding, "style", l10nBindings);
                 attrExprId = binding[8];
                 if (!attrExprMap[attrExprId]) {
                   attrExprMap[attrExprId] = bindVar;
@@ -3691,38 +3851,46 @@ var __resources__ = {
                 var expr = specialAttr && SPECIAL_ATTR_SINGLE[attrName] ? buildAttrExpression(binding, "bool", l10nBindings) + '?"' + attrName + '":""' : buildAttrExpression(binding, false, l10nBindings);
                 attrExprId = binding[7];
                 if (!attrExprMap[attrExprId]) {
-                  varList.push(bindVar + "=" + expr);
+                  varList.push(bindVar + "=UNSET");
                   attrExprMap[attrExprId] = bindVar;
                 }
                 bindVar = attrExprMap[attrExprId];
-                if (attrName == "tabindex") putBindCode("bind_attr", domRef, '"' + attrName + '"', bindVar, expr + "==-1?" + ([ "input", "button", "textarea" ].indexOf(tagName) == -1 ? '""' : "-1") + ":" + expr); else putBindCode("bind_attr", domRef, '"' + attrName + '"', bindVar, expr);
+                if (attrName == "tabindex") putBindCode("bind_attr", domRef, '"' + attrName + '"', bindVar, expr + "==-1?" + ([ "input", "button", "textarea" ].indexOf(tagName) == -1 ? '""' : "-1") + ":" + expr); else {
+                  var namespace = namespaces.getNamespace(attrName);
+                  if (namespace) putBindCode("bind_attrNS", domRef, '"' + namespace + '"', '"' + attrName + '"', bindVar, expr); else putBindCode("bind_attr", domRef, '"' + attrName + '"', bindVar, expr);
+                }
                 if (specialAttr && (specialAttr == "*" || specialAttr.indexOf(tagName) != -1)) bindCode.push("if(" + domRef + "." + attrName + "!=" + bindVar + ")" + domRef + "." + attrName + "=" + (SPECIAL_ATTR_SINGLE[attrName] ? "!!" + bindVar : bindVar) + ";");
-                debugList.push("{" + [ 'binding:"' + bindName + '"', "raw:" + (l10n ? 'l10n["' + bindName + '"]' : "__" + bindName), 'type:"' + (specialAttr && SPECIAL_ATTR_SINGLE[attrName] ? "bool" : "string") + '"', "expr:[[" + binding[5].map(simpleStringify) + "],[" + binding[4].map(simpleStringify) + "]]", "dom:" + domRef, 'attr:"' + attrName + '"', "val:" + bindVar, 'attachment:instance.attaches&&instance.attaches["' + bindName + '"]&&instance.attaches["' + bindName + '"].value' ] + "}");
+                debugList.push("{" + [ 'binding:"' + bindName + '"', "raw:" + (l10n ? 'l10n["' + l10nFullPath + '"]' : "__" + bindName), 'type:"' + (specialAttr && SPECIAL_ATTR_SINGLE[attrName] ? "bool" : "string") + '"', "expr:[[" + binding[5].map(simpleStringify) + "],[" + binding[4].map(simpleStringify) + "],[" + binding[4].map(stringifyBindingNames, l10nBindings) + "]]", "dom:" + domRef, 'attr:"' + attrName + '"', "val:" + bindVar, 'attachment:instance.attaches&&instance.attaches["' + bindName + '"]&&instance.attaches["' + bindName + '"].value' ] + "}");
             }
           }
         }
-        result.push(";function set(bindName,value){" + 'if(typeof bindName!="string")');
-        for (var bindName in bindMap) if (bindMap[bindName].nodeBind) {
-          result.push("if(bindName===" + bindMap[bindName].nodeBind + ")" + 'bindName="' + bindName + '";' + "else ");
+        var bindMapKeys = basis.object.keys(bindMap);
+        var setFunction = "";
+        if (bindMapKeys.length) {
+          toolsUsed.resolve = true;
+          setFunction = [ ";function set(bindName,value){", 'if(typeof bindName!="string")' ];
+          for (var bindName in bindMap) if (bindMap[bindName].nodeBind) {
+            setFunction.push("if(bindName===" + bindMap[bindName].nodeBind + ")" + 'bindName="' + bindName + '";' + "else ");
+          }
+          setFunction.push("return;", "rawValues[bindName]=value;", "value=resolve.call(instance,bindName,value,Attaches);", "switch(bindName){");
+          for (var bindName in bindMap) {
+            var stateVar = bindMap[bindName].l10n || bindName;
+            varList.push("$$" + stateVar + "=0");
+            setFunction.push('case"' + bindName + '":', "if(__" + stateVar + "!==value)", "{", "$$" + stateVar + "++;", "__" + stateVar + "=value;", bindMap[bindName].join(""), "}", "break;");
+          }
+          setFunction = setFunction.join("") + "}}";
         }
-        result.push("return;");
-        result.push("value=resolve.call(instance,bindName,value,Attaches);" + "switch(bindName){");
-        for (var bindName in bindMap) {
-          var stateVar = bindMap[bindName].l10n || bindName;
-          varList.push("$$" + stateVar + "=0");
-          result.push('case"' + bindName + '":' + "if(__" + stateVar + "!==value)" + "{" + "$$" + stateVar + "++;" + "__" + stateVar + "=value;" + bindMap[bindName].join("") + "}" + "break;");
-        }
-        result.push("}}");
         var toolsVarList = [];
         for (var key in toolsUsed) toolsVarList.push(key + "=tools." + key);
         return {
           debugList: debugList,
-          keys: basis.object.keys(bindMap).filter(function(key) {
+          allKeys: bindMapKeys,
+          keys: bindMapKeys.filter(function(key) {
             return key.indexOf("@") == -1;
           }),
           tools: toolsVarList,
           vars: varList,
-          set: result.join(""),
+          set: setFunction,
           l10n: l10nMap,
           l10nCompute: l10nCompute
         };
@@ -3752,11 +3920,11 @@ var __resources__ = {
         for (var key in bindings.l10n) code.push('case"' + key + '":' + bindings.l10n[key].join("") + "break;");
         result.createL10nSync = compileFunction([ "_", "l10n", "bind_attr", "TEXT_BUG" ], (source ? "\n// " + source.split(/\r\n?|\n\r?/).join("\n// ") + "\n\n" : "") + "var " + paths.path + ";" + "return function(path, value){" + "switch(path){" + code.join("") + "}" + "}" + "\n\n//# sourceURL=" + basis.path.origin + uri + "_l10n");
       }
-      result.createInstanceFactory = compileFunction([ "tid", "createDOM", "tools", "l10nMap", "l10nMarkup", "getBindings", "TEXT_BUG" ], (source ? "\n// " + source.split(/\r\n?|\n\r?/).join("\n// ") + "\n\n" : "") + "var " + (bindings.tools.length ? bindings.tools + "," : "") + "Attaches=function(){};" + "Attaches.prototype={" + bindings.keys.map(function(key) {
+      result.createInstanceFactory = compileFunction([ "tid", "createDOM", "tools", "l10nMap", "l10nMarkup", "getBindings", "TEXT_BUG" ], (source ? "\n// " + source.split(/\r\n?|\n\r?/).join("\n// ") + "\n\n" : "") + "var UNSET={valueOf:function(){}}," + (bindings.tools.length ? bindings.tools + "," : "") + (bindings.set ? "Attaches=function(){};" + "Attaches.prototype={" + bindings.keys.map(function(key) {
         return key + ":null";
-      }) + "};" + "return function createTmpl_(id,instance,initL10n){" + "var _=createDOM()," + (bindings.l10n ? "l10n=initL10n?{}:l10nMap," : "") + paths.path.concat(bindings.vars) + (debug ? ";instance.debug=function debug(){" + "return {" + "bindings:[" + bindings.debugList + "]," + "values:{" + bindings.keys.map(function(key) {
+      }) + "};" : "set=function(){};") + "return function createTmpl_(id,instance,initL10n){" + "var _=createDOM()," + (bindings.l10n ? "l10n=initL10n?{}:l10nMap," : "") + paths.path.concat(bindings.vars) + ",rawValues={}" + (debug ? ";instance.debug=function debug(){" + "return {" + "bindings:[" + bindings.debugList + "]," + "values:{" + bindings.keys.map(function(key) {
         return '"' + key + '":__' + key;
-      }) + "}," + "compute:Array.prototype.slice.call(instance.compute || [])" + "}" + "}" : "") + (bindings.l10nCompute.length ? ";instance.compute=[" + bindings.l10nCompute + "]" : "") + ";instance.tmpl={" + [ paths.ref, "templateId_:id", "set:set" ] + "}" + (objectRefs ? ";if(instance.context||instance.onAction)" + objectRefs + "=(id<<12)|tid" : "") + bindings.set + (bindings.l10n ? ";if(initL10n){l10n=l10nMap;initL10n(set)}" + ";if(l10nMarkup.length)for(var idx=0,token;token=l10nMarkup[idx];idx++)set(token.path,token.token);" : "") + ";if(instance.bindings)instance.handler=getBindings(instance,set)" + ";" + bindings.l10nCompute.map(function(varName) {
+      }) + "}," + "rawValues:rawValues," + (bindings.l10nCompute.length ? "compute:Array.prototype.slice.call(instance.compute)" : "compute:[]") + "}" + "}" : "") + (bindings.l10nCompute.length ? ";instance.compute=[" + bindings.l10nCompute + "]" : "") + ";instance.tmpl={" + [ paths.ref, "templateId_:id", "set:set" ] + "}" + (objectRefs ? ";if(instance.context||instance.onAction)" + objectRefs + "=(id<<12)|tid" : "") + bindings.set + (bindings.l10n ? ";if(initL10n){l10n=l10nMap;initL10n(set)}" + ";if(l10nMarkup.length)for(var idx=0,token;token=l10nMarkup[idx];idx++)set(token.path,token.token);" : "") + (bindings.set ? ";if(instance.bindings)instance.handler=getBindings(instance,set)" : "") + ";" + bindings.l10nCompute.map(function(varName) {
         return 'set("' + varName + '",' + varName + ")";
       }) + "}" + "\n\n//# sourceURL=" + basis.path.origin + uri);
       return result;
@@ -3765,12 +3933,31 @@ var __resources__ = {
       getFunctions: getFunctions
     };
   },
-  "a.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+  "b.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+    var namespaceURI = {
+      xlink: "http://www.w3.org/1999/xlink",
+      svg: "http://www.w3.org/2000/svg"
+    };
+    function getNamespace(name, node) {
+      if (!name) return;
+      var colonIndex = name.indexOf(":");
+      if (colonIndex != -1) {
+        var prefix = name.substr(0, colonIndex);
+        return namespaceURI[prefix] || node && node.lookupNamespaceURI(prefix);
+      }
+    }
+    module.exports = {
+      namespaceURI: namespaceURI,
+      getNamespace: getNamespace
+    };
+  },
+  "c.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
     var Node = global.Node;
     var hasOwnProperty = Object.prototype.hasOwnProperty;
-    var eventUtils = basis.require("./b.js");
-    var resolveActionById = basis.require("./4.js").resolveActionById;
-    var consts = basis.require("./2.js");
+    var eventUtils = basis.require("./d.js");
+    var resolveActionById = basis.require("./5.js").resolveActionById;
+    var consts = basis.require("./3.js");
+    var namespaces = basis.require("./b.js");
     var MARKER = consts.MARKER;
     var CLONE_NORMALIZATION_TEXT_BUG = consts.CLONE_NORMALIZATION_TEXT_BUG;
     var TYPE_ELEMENT = consts.TYPE_ELEMENT;
@@ -3792,6 +3979,7 @@ var __resources__ = {
     var COMMENT_VALUE = consts.COMMENT_VALUE;
     var CLASS_BINDING_ENUM = consts.CLASS_BINDING_ENUM;
     var CLASS_BINDING_BOOL = consts.CLASS_BINDING_BOOL;
+    var CLASS_BINDING_INVERT = consts.CLASS_BINDING_INVERT;
     var MOUSE_ENTER_LEAVE_SUPPORT = "onmouseenter" in document.documentElement;
     var USE_CAPTURE_FALLBACK = false;
     var tmplEventListeners = {};
@@ -3813,12 +4001,13 @@ var __resources__ = {
       return function(event) {
         if (event.type == "click" && event.which == 3) return;
         var bubble = insideElementEvent[event.type] || event.type != "mouseenter" && event.type != "mouseleave";
-        var attrCursor = event.sender;
+        var nodePath = event.path.slice(0, event.path.length - 1);
+        var attrCursor = nodePath.shift();
         var attr;
         while (attrCursor) {
           attr = attrCursor.getAttribute && attrCursor.getAttribute(attrName);
           if (!bubble || typeof attr == "string") break;
-          attrCursor = attrCursor.parentNode;
+          attrCursor = nodePath.shift();
         }
         if (typeof attr == "string") {
           var cursor = attrCursor;
@@ -3834,7 +4023,7 @@ var __resources__ = {
             if (typeof refId == "number") {
               if (tmplRef = resolveActionById(refId)) break;
             }
-            cursor = cursor.parentNode;
+            cursor = nodePath.shift();
           }
           var actions = attr.trim().split(/\s+/);
           var actionCallback = tmplRef && tmplRef.action;
@@ -3884,9 +4073,6 @@ var __resources__ = {
       }
       for (var i = 0, names = eventUtils.browserEvents(eventName), browserEventName; browserEventName = names[i]; i++) eventUtils.addGlobalHandler(browserEventName, tmplEventListeners[eventName]);
     }
-    var namespaceURI = {
-      svg: "http://www.w3.org/2000/svg"
-    };
     var SET_CLASS_ATTRIBUTE_BUG = function() {
       var element = document.createElement("div");
       element.setAttribute("class", "a");
@@ -3905,7 +4091,8 @@ var __resources__ = {
     function setAttribute(node, name, value) {
       if (SET_CLASS_ATTRIBUTE_BUG && name == "class") name = "className";
       if (SET_STYLE_ATTRIBUTE_BUG && name == "style") return node.style.cssText = value;
-      node.setAttribute(name, value);
+      var namespace = namespaces.getNamespace(name, node);
+      if (namespace) node.setAttributeNS(namespace, name, value); else node.setAttribute(name, value);
     }
     var buildDOM = function(tokens, parent) {
       var result = parent || document.createDocumentFragment();
@@ -3915,8 +4102,8 @@ var __resources__ = {
         switch (tokenType) {
           case TYPE_ELEMENT:
             var tagName = token[ELEMENT_NAME];
-            var colonIndex = tagName.indexOf(":");
-            var element = colonIndex != -1 ? document.createElementNS(namespaceURI[tagName.substr(0, colonIndex)], tagName) : document.createElement(tagName);
+            var namespace = namespaces.getNamespace(tagName);
+            var element = namespace ? document.createElementNS(namespace, tagName) : document.createElement(tagName);
             buildDOM(token, element);
             result.appendChild(element);
             break;
@@ -3935,6 +4122,7 @@ var __resources__ = {
                 } else {
                   switch (binding[2]) {
                     case CLASS_BINDING_BOOL:
+                    case CLASS_BINDING_INVERT:
                       attrValue.push(prefix + binding[3]);
                       break;
                     case CLASS_BINDING_ENUM:
@@ -3962,13 +4150,13 @@ var __resources__ = {
             break;
         }
       }
-      if (!parent && tokens.length == 1) result = result.firstChild;
+      if (!parent && tokens.length == 1) result = result.removeChild(result.firstChild);
       return result;
     };
     module.exports = buildDOM;
   },
-  "b.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
-    var namespace = this.path;
+  "d.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+    var namespace = "basis.dom.event";
     var document = global.document;
     var $null = basis.fn.$null;
     var arrayFrom = basis.array.from;
@@ -4024,20 +4212,30 @@ var __resources__ = {
     var BROWSER_EVENTS = {
       mousewheel: [ "wheel", "mousewheel", "DOMMouseScroll" ]
     };
+    var DEPRECATED = /^(returnValue|keyLocation|layerX|layerY|webkitMovementX|webkitMovementY)$/;
     function browserEvents(eventName) {
       return BROWSER_EVENTS[eventName] || [ eventName ];
+    }
+    function getPath(node) {
+      var path = [];
+      do {
+        path.push(node);
+      } while (node = node.parentNode);
+      path.push(global);
+      return path;
     }
     var Event = basis.Class(null, {
       className: namespace + ".Event",
       KEY: KEY,
       init: function(event) {
         event = wrap(event);
-        for (var name in event) if (name != "returnValue" && name != "keyLocation" && name != "layerX" && name != "layerY" && (event.type != "progress" || name != "totalSize" && name != "position")) if (typeof event[name] != "function" && name in this == false) this[name] = event[name];
+        for (var name in event) if (!DEPRECATED.test(name) && (event.type != "progress" || name != "totalSize" && name != "position")) if (typeof event[name] != "function" && name in this == false) this[name] = event[name];
         var target = sender(event);
         basis.object.extend(this, {
           event_: event,
           sender: target,
           target: target,
+          path: event.path ? basis.array(event.path) : getPath(target),
           key: key(event),
           charCode: charCode(event),
           mouseLeft: mouseButton(event, MOUSE_LEFT),
@@ -4333,15 +4531,14 @@ var __resources__ = {
 
 (function createBasisInstance(context, __basisFilename, __config) {
   "use strict";
-  var VERSION = "1.4.1";
+  var VERSION = "1.6.1";
   var global = Function("return this")();
-  var NODE_ENV = global !== context ? global : false;
+  var process = global.process;
   var document = global.document;
   var location = global.location;
-  var process = global.process;
+  var NODE_ENV = global !== context && process && process.argv ? global : false;
   var toString = Object.prototype.toString;
   var hasOwnProperty = Object.prototype.hasOwnProperty;
-  global = context;
   var FACTORY = {};
   var PROXY = {};
   FACTORY = new (devVerboseName("basis.FACTORY", {}, function() {}));
@@ -4781,7 +4978,7 @@ var __resources__ = {
       return {
         add: function(object) {
           queue[object.basisObjectId] = object;
-          if (!scheduled) scheduled = basis.asap(process);
+          if (!scheduled) scheduled = asap(process);
         },
         remove: function(object) {
           delete queue[object.basisObjectId];
@@ -4813,7 +5010,7 @@ var __resources__ = {
     var origin;
     var utils;
     if (NODE_ENV) {
-      var path = (process.basisjsBaseURI || require("path").resolve(".")).replace(/\\/g, "/");
+      var path = (process.basisjsBaseURI || "/").replace(/\\/g, "/");
       baseURI = path.replace(/^[^\/]*/, "");
       origin = path.replace(/\/.*/, "");
     } else {
@@ -4886,7 +5083,7 @@ var __resources__ = {
     noConflict: true,
     implicitExt: true,
     modules: {},
-    autoload: [ "./0.js" ]
+    autoload: [ "./1.js" ]
   };
   function fetchConfig() {
     var config = __config;
@@ -5015,17 +5212,22 @@ var __resources__ = {
         extendConstructor_: !!SuperClass.extendConstructor_,
         isSubclassOf: isSubclassOf,
         subclass: function() {
-          return createClass.apply(null, [ newClass ].concat(arrayFrom(arguments)));
+          return createClass.apply(null, [ NewClass ].concat(arrayFrom(arguments)));
         },
         extend: extendClass,
+        factory: function(config) {
+          return factory(function(extra) {
+            return new NewClass(merge(config, extra));
+          });
+        },
         __extend__: function(value) {
-          if (value && value !== SELF && (typeof value == "object" || typeof value == "function" && !isClass(value))) return BaseClass.create.call(null, newClass, value); else return value;
+          if (value && value !== SELF && (typeof value == "object" || typeof value == "function" && !isClass(value))) return BaseClass.create.call(null, NewClass, value); else return value;
         },
         prototype: newProto
       };
       for (var i = 1, extension; extension = arguments[i]; i++) newClassProps.extend(extension);
       if (newProto.init !== BaseClass.prototype.init && !/^function[^(]*\(\)/.test(newProto.init) && newClassProps.extendConstructor_) consoleMethods.warn("probably wrong extendConstructor_ value for " + newClassProps.className);
-      var newClass = newClassProps.extendConstructor_ ? function(extend) {
+      var NewClass = newClassProps.extendConstructor_ ? function(extend) {
         this.basisObjectId = instanceSeed.id++;
         var prop;
         for (var key in extend) {
@@ -5039,14 +5241,14 @@ var __resources__ = {
         this.init.apply(this, arguments);
         this.postInit();
       };
-      newClass = devVerboseName(className, {
+      NewClass = devVerboseName(className, {
         instanceSeed: instanceSeed
-      }, newClass);
-      newProto.constructor = newClass;
-      for (var key in newProto) if (newProto[key] === SELF) newProto[key] = newClass;
-      extend(newClass, newClassProps);
-      classes.push(newClass);
-      return newClass;
+      }, NewClass);
+      newProto.constructor = NewClass;
+      for (var key in newProto) if (newProto[key] === SELF) newProto[key] = NewClass;
+      extend(NewClass, newClassProps);
+      classes.push(NewClass);
+      return NewClass;
     }
     function extendClass(source) {
       var proto = this.prototype;
@@ -5286,7 +5488,8 @@ var __resources__ = {
         }
       } else {
         try {
-          resourceContent = process.basisjsReadFile ? process.basisjsReadFile(url) : require("fs").readFileSync(url, "utf-8");
+          if (!process.basisjsReadFile) consoleMethods.warn("basis.resource: basisjsReadFile not found, file content couldn't to be read");
+          resourceContent = process.basisjsReadFile ? process.basisjsReadFile(url) : "";
         } catch (e) {
           consoleMethods.error("basis.resource: Unable to load " + url, e);
         }
@@ -5307,7 +5510,7 @@ var __resources__ = {
       if (resolved) return content;
       var urlContent = isVirtual ? content : getResourceContent(resourceUrl);
       var idx = resourceResolvingStack.indexOf(resourceUrl);
-      if (idx != -1) consoleMethods.warn("basis.resource recursion:", resourceResolvingStack.slice(idx).concat(resourceUrl).map(pathUtils.relative, pathUtils).join(" -> "));
+      if (idx != -1) consoleMethods.warn("basis.resource recursion: " + resourceResolvingStack.slice(idx).concat(resourceUrl).map(pathUtils.relative, pathUtils).join(" -> "));
       resourceResolvingStack.push(resourceUrl);
       if (contentWrapper) {
         if (!wrapped) {
@@ -5487,9 +5690,16 @@ var __resources__ = {
       }
     }
   });
+  var SOURCE_OFFSET;
   function compileFunction(sourceURL, args, body) {
+    if (isNaN(SOURCE_OFFSET)) {
+      var marker = basis.genUID();
+      SOURCE_OFFSET = (new Function(args, marker)).toString().split(marker)[0].split(/\n/).length - 1;
+    }
+    body = devInfoResolver.fixSourceOffset(body, SOURCE_OFFSET + 1);
+    if (!/\/\/# sourceMappingURL=[^\r\n]+[\s]*$/.test(body)) body += "\n\n//# sourceURL=" + pathUtils.origin + sourceURL;
     try {
-      return new Function(args, '"use strict";\n' + (NODE_ENV ? "var __nodejsRequire = require;\n" : "") + body + "\n\n//# sourceURL=" + pathUtils.origin + sourceURL);
+      return new Function(args, '"use strict";\n' + (NODE_ENV ? "var __nodejsRequire = require;\n" : "") + body);
     } catch (e) {
       if (document && "line" in e == false && "addEventListener" in global) {
         global.addEventListener("error", function onerror(event) {
@@ -5549,12 +5759,10 @@ var __resources__ = {
     className: "basis.Namespace",
     init: function(name) {
       this.name = name;
-      this.exports = {
-        path: this.name
-      };
+      this.exports = {};
     },
     toString: function() {
-      return "[basis.namespace " + this.path + "]";
+      return "[basis.namespace " + this.name + "]";
     },
     extend: function(names) {
       extend(this.exports, names);
@@ -5607,10 +5815,14 @@ var __resources__ = {
     return cursor;
   }
   var requireNamespace = function(path, baseURI) {
-    if (!/[^a-z0-9_\.]/i.test(path) && pathUtils.extname(path) != ".js") {
+    var extname = pathUtils.extname(path);
+    if (!/[^a-z0-9_\.]/i.test(path) && extname != ".js") {
       path = resolveNSFilename(path);
     } else {
-      if (!/[\?#]/.test(path)) path = resolveResourceFilename(path, baseURI, "basis.require('{url}')");
+      if (!/[\?#]/.test(path)) {
+        if (!extname) path += ".js";
+        path = resolveResourceFilename(path, baseURI, "basis.require('{url}')");
+      }
     }
     return getResource(path).fetch();
   };
@@ -6153,6 +6365,43 @@ var __resources__ = {
       }
     });
   }();
+  var devInfoResolver = function() {
+    var getExternalInfo = $undef;
+    var fixSourceOffset = $self;
+    var set = function(target, key, info) {};
+    var get = function(target, key) {
+      var externalInfo = getExternalInfo(target);
+      var ownInfo = map.get(target);
+      if (externalInfo || ownInfo) {
+        var info = merge(externalInfo, ownInfo);
+        return key ? info[key] : info;
+      }
+    };
+    try {
+      (new WeakMap).get(1);
+    } catch (e) {
+      get = function() {};
+    }
+    var map = typeof WeakMap == "function" ? new WeakMap : false;
+    if (map) set = function(target, key, value) {
+      if (!target || typeof target != "object" && typeof target != "function") {
+        consoleMethods.warn("Set dev info for non-object or non-function was ignored");
+        return;
+      }
+      var info = map.get(target);
+      if (!info) map.set(target, info = {});
+      info[key] = value;
+    };
+    var resolver = config.devInfoResolver || global.$devinfo || {};
+    var test = {};
+    if (typeof resolver.fixSourceOffset == "function") fixSourceOffset = resolver.fixSourceOffset;
+    if (typeof resolver.get == "function") getExternalInfo = resolver.get;
+    return {
+      fixSourceOffset: fixSourceOffset,
+      setInfo: set,
+      getInfo: get
+    };
+  }();
   var basis = getNamespace("basis").extend({
     filename_: basisFilename,
     processConfig: processConfig,
@@ -6161,10 +6410,11 @@ var __resources__ = {
     config: config,
     createSandbox: function(config) {
       return createBasisInstance(global, basisFilename, complete({
-        noConflict: true
+        noConflict: true,
+        devpanel: false
       }, config));
     },
-    dev: (new Namespace("basis.dev")).extend(consoleMethods).extend({
+    dev: consoleMethods = (new Namespace("basis.dev")).extend(consoleMethods).extend(devInfoResolver).extend({
       warnPropertyAccess: warnPropertyAccess
     }),
     resolveNSFilename: resolveNSFilename,
@@ -6242,9 +6492,12 @@ var __resources__ = {
       }
     }
   });
-  if (config.autoload && !NODE_ENV) config.autoload.forEach(function(name) {
-    requireNamespace(name);
-  });
+  if (!NODE_ENV) {
+    if (config.autoload) config.autoload.forEach(function(name) {
+      requireNamespace(name);
+    });
+    if ("devpanel" in config == false || config.devpanel) basis.require("./0.js");
+  }
   if (NODE_ENV && exports) exports.basis = basis;
   return basis;
 })(this);
