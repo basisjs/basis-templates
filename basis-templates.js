@@ -1,17 +1,30 @@
-// resources(17):
-//   [function] ../../src/basis/template/theme.js -> 6.js
+// resources(30):
+//   [function] ../../src/basis/template/declaration/element/b-isolate.js -> o.js
 //   [function] ../../src/basis/devpanel.js -> 0.js
 //   [function] ../../src/basis/template.js -> 2.js
 //   [function] ../../src/basis/template/const.js -> 3.js
 //   [function] ../../src/basis/template/declaration.js -> 4.js
 //   [function] ../../src/basis/template/tokenize.js -> e.js
 //   [function] ../../src/basis/template/isolateCss.js -> f.js
-//   [function] ../../src/basis/template/store.js -> 5.js
+//   [function] ../../src/basis/template/declaration/utils.js -> g.js
+//   [function] ../../src/basis/template/declaration/refs.js -> h.js
+//   [function] ../../src/basis/template/declaration/ast.js -> i.js
+//   [function] ../../src/basis/template/declaration/style.js -> j.js
+//   [function] ../../src/basis/template/declaration/attr.js -> k.js
+//   [function] ../../src/basis/template/declaration/element/b-content.js -> l.js
+//   [function] ../../src/basis/template/declaration/element/b-define.js -> m.js
+//   [function] ../../src/basis/template/declaration/element/b-include.js -> n.js
 //   [function] templates.js -> 1.js
+//   [function] ../../src/basis/template/declaration/element/b-l10n.js -> p.js
+//   [function] ../../src/basis/template/declaration/element/b-style.js -> q.js
+//   [function] ../../src/basis/template/declaration/element/b-svg.js -> r.js
+//   [function] ../../src/basis/template/declaration/element/b-text.js -> s.js
+//   [function] ../../src/basis/template/store.js -> 5.js
+//   [function] ../../src/basis/template/theme.js -> 6.js
 //   [function] ../../src/basis/template/html.js -> 7.js
 //   [function] ../../src/basis/l10n.js -> 8.js
 //   [function] ../../src/basis/event.js -> 9.js
-//   [function] ../../src/basis/utils/json-parser.js -> g.js
+//   [function] ../../src/basis/utils/json-parser.js -> t.js
 //   [function] ../../src/basis/template/htmlfgen.js -> a.js
 //   [function] ../../src/basis/template/namespace.js -> b.js
 //   [function] ../../src/basis/template/buildDom.js -> c.js
@@ -27,233 +40,15 @@ var __namespace_map__ = {"0.js":"basis.devpanel","1.js":"templates","2.js":"basi
 var templates;
 
 var __resources__ = {
-  "6.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
-    var namespace = "basis.template.theme";
-    var themes = {};
-    var sourceByPath = {};
-    var themeChangeHandlers = [];
-    var currentThemeName = "base";
-    var baseTheme;
-    var Theme = basis.Class(null, {
-      className: namespace + ".Theme",
-      get: getSourceByPath
-    });
-    var SourceWrapper = basis.Class(basis.Token, {
-      className: namespace + ".SourceWrapper",
-      path: "",
-      url: "",
-      baseURI: "",
-      init: function(value, path) {
-        this.path = path;
-        basis.Token.prototype.init.call(this, "");
-      },
-      get: function() {
-        return this.value && this.value.bindingBridge ? this.value.bindingBridge.get(this.value) : this.value;
-      },
-      set: function() {
-        var content = getThemeSource(currentThemeName, this.path);
-        if (this.value != content) {
-          if (this.value && this.value.bindingBridge) this.value.bindingBridge.detach(this.value, SourceWrapper.prototype.apply, this);
-          this.value = content;
-          this.url = content && content.url || "";
-          this.baseURI = (typeof content == "object" || typeof content == "function") && "baseURI" in content ? content.baseURI : basis.path.dirname(this.url) + "/";
-          if (this.value && this.value.bindingBridge) this.value.bindingBridge.attach(this.value, SourceWrapper.prototype.apply, this);
-          this.apply();
-        }
-      },
-      destroy: function() {
-        this.url = null;
-        this.baseURI = null;
-        if (this.value && this.value.bindingBridge) this.value.bindingBridge.detach(this.value, this.apply, this);
-        basis.Token.prototype.destroy.call(this);
+  "o.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+    var utils = basis.require("./g.js");
+    var getTokenAttrValues = utils.getTokenAttrValues;
+    module.exports = function(template, options, token) {
+      if (template.isolate) {
+        utils.addTemplateWarn(template, options, "<b:isolate> is already set to `" + template.isolate + "`", token.loc);
+        return;
       }
-    });
-    function getSourceByPath() {
-      var path = basis.array(arguments).join(".");
-      var source = sourceByPath[path];
-      if (!source) {
-        source = new SourceWrapper("", path);
-        sourceByPath[path] = source;
-      }
-      return source;
-    }
-    function normalize(list) {
-      var used = {};
-      var result = [];
-      for (var i = 0; i < list.length; i++) if (!used[list[i]]) {
-        used[list[i]] = true;
-        result.push(list[i]);
-      }
-      return result;
-    }
-    function extendFallback(themeName, list) {
-      var result = [];
-      result.source = normalize(list).join("/");
-      var used = {
-        base: true
-      };
-      for (var i = 0; i < list.length; i++) {
-        var name = list[i] || "base";
-        if (name == themeName || used[name]) continue;
-        used[name] = true;
-        result.push(name);
-        getTheme(name);
-        list.splice.apply(list, [ i + 1, 0 ].concat(themes[name].fallback));
-      }
-      result.unshift(themeName);
-      if (themeName != "base") result.push("base");
-      result.value = result.join("/");
-      return result;
-    }
-    function getThemeSource(name, path) {
-      var sourceList = themes[name].sourcesList;
-      for (var i = 0, map; map = sourceList[i]; i++) if (map.hasOwnProperty(path)) return map[path];
-      return "";
-    }
-    function themeHasEffect(themeName) {
-      return themes[currentThemeName].fallback.indexOf(themeName) != -1;
-    }
-    function syncCurrentThemePath(path) {
-      getSourceByPath(path).set();
-    }
-    function syncCurrentTheme() {
-      basis.dev.log("re-apply templates");
-      for (var path in sourceByPath) syncCurrentThemePath(path);
-    }
-    function getTheme(name) {
-      if (!name) name = "base";
-      if (themes[name]) return themes[name].theme;
-      if (!/^([a-z0-9\_\-]+)$/.test(name)) throw "Bad name for theme - " + name;
-      var sources = {};
-      var sourceList = [ sources ];
-      var themeInterface = new Theme;
-      themes[name] = {
-        theme: themeInterface,
-        sources: sources,
-        sourcesList: sourceList,
-        fallback: []
-      };
-      var addSource = function(path, source) {
-        if (path in sources == false) {
-          sources[path] = source;
-          if (themeHasEffect(name)) syncCurrentThemePath(path);
-        } else basis.dev.warn("Template path `" + path + "` is already defined for theme `" + name + "` (definition ignored).");
-        return getSourceByPath(path);
-      };
-      basis.object.extend(themeInterface, {
-        name: name,
-        fallback: function(value) {
-          if (themeInterface !== baseTheme && arguments.length > 0) {
-            var newFallback = typeof value == "string" ? value.split("/") : [];
-            var changed = {};
-            newFallback = extendFallback(name, newFallback);
-            if (themes[name].fallback.source != newFallback.source) {
-              themes[name].fallback.source = newFallback.source;
-              basis.dev.log("fallback changed");
-              for (var themeName in themes) {
-                var curFallback = themes[themeName].fallback;
-                var newFallback = extendFallback(themeName, (curFallback.source || "").split("/"));
-                if (newFallback.value != curFallback.value) {
-                  changed[themeName] = true;
-                  themes[themeName].fallback = newFallback;
-                  var sourceList = themes[themeName].sourcesList;
-                  sourceList.length = newFallback.length;
-                  for (var i = 0; i < sourceList.length; i++) sourceList[i] = themes[newFallback[i]].sources;
-                }
-              }
-            }
-            for (var themeName in changed) if (themeHasEffect(themeName)) {
-              syncCurrentTheme();
-              break;
-            }
-          }
-          var result = themes[name].fallback.slice(1);
-          result.source = themes[name].fallback.source;
-          return result;
-        },
-        define: function(what, wherewith) {
-          if (typeof what == "function") what = what();
-          if (typeof what == "string") {
-            if (typeof wherewith == "object") {
-              var namespace = what;
-              var dictionary = wherewith;
-              var result = {};
-              for (var key in dictionary) if (dictionary.hasOwnProperty(key)) result[key] = addSource(namespace + "." + key, dictionary[key]);
-              return result;
-            } else {
-              if (arguments.length == 1) {
-                return getSourceByPath(what);
-              } else {
-                return addSource(what, wherewith);
-              }
-            }
-          } else {
-            if (typeof what == "object") {
-              var dictionary = what;
-              for (var path in dictionary) if (dictionary.hasOwnProperty(path)) addSource(path, dictionary[path]);
-              return themeInterface;
-            } else {
-              basis.dev.warn("Wrong first argument for basis.template.Theme#define");
-            }
-          }
-        },
-        apply: function() {
-          if (name != currentThemeName) {
-            currentThemeName = name;
-            syncCurrentTheme();
-            for (var i = 0, handler; handler = themeChangeHandlers[i]; i++) handler.fn.call(handler.context, name);
-            basis.dev.info("Template theme switched to `" + name + "`");
-          }
-          return themeInterface;
-        },
-        getSource: function(path, withFallback) {
-          return withFallback ? getThemeSource(name, path) : sources[path];
-        },
-        drop: function(path) {
-          if (sources.hasOwnProperty(path)) {
-            delete sources[path];
-            if (themeHasEffect(name)) syncCurrentThemePath(path);
-          }
-        }
-      });
-      themes[name].fallback = extendFallback(name, []);
-      sourceList.push(themes.base.sources);
-      return themeInterface;
-    }
-    function onThemeChange(fn, context, fire) {
-      themeChangeHandlers.push({
-        fn: fn,
-        context: context
-      });
-      if (fire) fn.call(context, currentThemeName);
-    }
-    basis.cleaner.add({
-      destroy: function() {
-        for (var path in sourceByPath) sourceByPath[path].destroy();
-        themes = null;
-        sourceByPath = null;
-      }
-    });
-    baseTheme = getTheme();
-    module.exports = {
-      SourceWrapper: SourceWrapper,
-      Theme: Theme,
-      theme: getTheme,
-      getThemeList: function() {
-        return basis.object.keys(themes);
-      },
-      currentTheme: function() {
-        return themes[currentThemeName].theme;
-      },
-      setTheme: function(name) {
-        return getTheme(name).apply();
-      },
-      onThemeChange: onThemeChange,
-      define: baseTheme.define,
-      get: getSourceByPath,
-      getPathList: function() {
-        return basis.object.keys(sourceByPath);
-      }
+      template.isolate = getTokenAttrValues(token).prefix || options.isolate || options.genIsolateMarker();
     };
   },
   "0.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
@@ -499,6 +294,7 @@ var __resources__ = {
       TYPE_ATTRIBUTE_EVENT: consts.TYPE_ATTRIBUTE_EVENT,
       TYPE_TEXT: consts.TYPE_TEXT,
       TYPE_COMMENT: consts.TYPE_COMMENT,
+      TYPE_CONTENT: consts.TYPE_CONTENT,
       TOKEN_TYPE: consts.TOKEN_TYPE,
       TOKEN_BINDINGS: consts.TOKEN_BINDINGS,
       TOKEN_REFS: consts.TOKEN_REFS,
@@ -512,6 +308,8 @@ var __resources__ = {
       ELEMENT_ATTRIBUTES_AND_CHILDREN: consts.ELEMENT_ATTRIBUTES_AND_CHILDREN,
       TEXT_VALUE: consts.TEXT_VALUE,
       COMMENT_VALUE: consts.COMMENT_VALUE,
+      CONTENT_CHILDREN: consts.CONTENT_CHILDREN,
+      CONTENT_PRIORITY: consts.CONTENT_PRIORITY,
       TemplateSwitchConfig: TemplateSwitchConfig,
       TemplateSwitcher: TemplateSwitcher,
       Template: Template,
@@ -548,6 +346,7 @@ var __resources__ = {
     var TYPE_ATTRIBUTE_EVENT = 6;
     var TYPE_TEXT = 3;
     var TYPE_COMMENT = 8;
+    var TYPE_CONTENT = 9;
     var TOKEN_TYPE = 0;
     var TOKEN_BINDINGS = 1;
     var TOKEN_REFS = 2;
@@ -567,15 +366,17 @@ var __resources__ = {
       5: ATTR_VALUE - 1,
       6: 2
     };
-    var ELEMENT_NAME = 3;
-    var ELEMENT_ATTRIBUTES_AND_CHILDREN = 4;
-    var TEXT_VALUE = 3;
-    var COMMENT_VALUE = 3;
     var CLASS_BINDING_ENUM = 1;
     var CLASS_BINDING_BOOL = 2;
     var CLASS_BINDING_INVERT = 3;
     var CLASS_BINDING_EQUAL = 4;
     var CLASS_BINDING_NOTEQUAL = 5;
+    var ELEMENT_NAME = 3;
+    var ELEMENT_ATTRIBUTES_AND_CHILDREN = 4;
+    var TEXT_VALUE = 3;
+    var COMMENT_VALUE = 3;
+    var CONTENT_CHILDREN = 2;
+    var CONTENT_PRIORITY = 1;
     var document = global.document;
     var CLONE_NORMALIZATION_TEXT_BUG = !document ? true : function() {
       var element = document.createElement("div");
@@ -592,6 +393,7 @@ var __resources__ = {
       TYPE_ATTRIBUTE_EVENT: TYPE_ATTRIBUTE_EVENT,
       TYPE_TEXT: TYPE_TEXT,
       TYPE_COMMENT: TYPE_COMMENT,
+      TYPE_CONTENT: TYPE_CONTENT,
       TOKEN_TYPE: TOKEN_TYPE,
       TOKEN_BINDINGS: TOKEN_BINDINGS,
       TOKEN_REFS: TOKEN_REFS,
@@ -604,6 +406,8 @@ var __resources__ = {
       ELEMENT_ATTRIBUTES_AND_CHILDREN: ELEMENT_ATTRIBUTES_AND_CHILDREN,
       TEXT_VALUE: TEXT_VALUE,
       COMMENT_VALUE: COMMENT_VALUE,
+      CONTENT_CHILDREN: CONTENT_CHILDREN,
+      CONTENT_PRIORITY: CONTENT_PRIORITY,
       CLASS_BINDING_ENUM: CLASS_BINDING_ENUM,
       CLASS_BINDING_BOOL: CLASS_BINDING_BOOL,
       CLASS_BINDING_INVERT: CLASS_BINDING_INVERT,
@@ -616,838 +420,98 @@ var __resources__ = {
     var hasOwnProperty = Object.prototype.hasOwnProperty;
     var arraySearch = basis.array.search;
     var arrayAdd = basis.array.add;
-    var arrayRemove = basis.array.remove;
     var tokenize = basis.require("./e.js");
     var isolateCss = basis.require("./f.js");
     var consts = basis.require("./3.js");
+    var utils = basis.require("./g.js");
+    var refUtils = basis.require("./h.js");
+    var styleUtils = basis.require("./j.js");
+    var attrUtils = basis.require("./k.js");
     var TYPE_ELEMENT = consts.TYPE_ELEMENT;
     var TYPE_ATTRIBUTE = consts.TYPE_ATTRIBUTE;
     var TYPE_ATTRIBUTE_CLASS = consts.TYPE_ATTRIBUTE_CLASS;
-    var TYPE_ATTRIBUTE_STYLE = consts.TYPE_ATTRIBUTE_STYLE;
-    var TYPE_ATTRIBUTE_EVENT = consts.TYPE_ATTRIBUTE_EVENT;
     var TYPE_TEXT = consts.TYPE_TEXT;
     var TYPE_COMMENT = consts.TYPE_COMMENT;
+    var TYPE_CONTENT = consts.TYPE_CONTENT;
     var TOKEN_TYPE = consts.TOKEN_TYPE;
     var TOKEN_BINDINGS = consts.TOKEN_BINDINGS;
-    var TOKEN_REFS = consts.TOKEN_REFS;
-    var ATTR_NAME = consts.ATTR_NAME;
-    var ATTR_VALUE = consts.ATTR_VALUE;
-    var ATTR_NAME_BY_TYPE = consts.ATTR_NAME_BY_TYPE;
-    var ATTR_TYPE_BY_NAME = consts.ATTR_TYPE_BY_NAME;
     var ATTR_VALUE_INDEX = consts.ATTR_VALUE_INDEX;
     var ELEMENT_ATTRIBUTES_AND_CHILDREN = consts.ELEMENT_ATTRIBUTES_AND_CHILDREN;
     var TEXT_VALUE = consts.TEXT_VALUE;
-    var CLASS_BINDING_ENUM = consts.CLASS_BINDING_ENUM;
-    var CLASS_BINDING_BOOL = consts.CLASS_BINDING_BOOL;
-    var CLASS_BINDING_INVERT = consts.CLASS_BINDING_INVERT;
-    var ATTR_NAME_RX = /^[a-z_][a-z0-9_\-:]*$/i;
-    var ATTR_EVENT_RX = /^event-(.+)$/;
+    var CONTENT_PRIORITY = consts.CONTENT_PRIORITY;
+    var CONTENT_CHILDREN = consts.CONTENT_CHILDREN;
+    var resourceHash = utils.resourceHash;
+    var getTokenName = utils.getTokenName;
+    var bindingList = utils.bindingList;
+    var refList = refUtils.refList;
+    var addTokenRef = refUtils.addTokenRef;
+    var normalizeRefs = refUtils.normalizeRefs;
+    var applyAttrs = attrUtils.applyAttrs;
+    var styleNamespaceIsolate = styleUtils.styleNamespaceIsolate;
+    var isolateTokens = styleUtils.isolateTokens;
+    var topLevelInstructions = [ "define", "isolate", "l10n", "style" ];
+    var humanTopLevelInstrcutionList = topLevelInstructions.map(function(name) {
+      return "<b:" + name + ">";
+    }).join(", ").replace(/, (<b:[a-z]+>)$/, " and $1");
+    var elementHandlers = {
+      content: basis.require("./l.js"),
+      define: basis.require("./m.js"),
+      include: basis.require("./n.js"),
+      isolate: basis.require("./o.js"),
+      l10n: basis.require("./p.js"),
+      style: basis.require("./q.js"),
+      svg: basis.require("./r.js"),
+      text: basis.require("./s.js")
+    };
     var Template = function() {};
     var resolveResource = function() {};
-    function genIsolateMarker() {
+    var genIsolateMarker = function() {
       return basis.genUID() + "__";
-    }
+    };
     var makeDeclaration = function() {
       var includeStack = [];
-      var styleNamespaceIsolate = {};
       var styleNamespaceResource = {};
-      function getTokenName(token) {
-        return (token.prefix ? token.prefix + ":" : "") + token.name;
-      }
-      function refList(token) {
-        var array = token.refs;
-        if (!array || !array.length) return 0;
-        return array;
-      }
-      function addTokenRef(token, refName) {
-        if (!token[TOKEN_REFS]) token[TOKEN_REFS] = [];
-        arrayAdd(token[TOKEN_REFS], refName);
-        if (refName != "element") token[TOKEN_BINDINGS] = token[TOKEN_REFS].length == 1 ? refName : 0;
-      }
-      function removeTokenRef(token, refName) {
-        var idx = token[TOKEN_REFS].indexOf(refName);
-        if (idx != -1) {
-          var indexBinding = token[TOKEN_BINDINGS] && typeof token[TOKEN_BINDINGS] == "number";
-          token[TOKEN_REFS].splice(idx, 1);
-          if (indexBinding) if (idx == token[TOKEN_BINDINGS] - 1) {
-            token[TOKEN_BINDINGS] = refName;
-            indexBinding = false;
-          }
-          if (!token[TOKEN_REFS].length) token[TOKEN_REFS] = 0; else {
-            if (indexBinding) token[TOKEN_BINDINGS] -= idx < token[TOKEN_BINDINGS] - 1;
-          }
-        }
-      }
-      function tokenAttrs(token) {
-        var result = {};
-        if (token.attrs) for (var i = 0, attr; attr = token.attrs[i]; i++) result[getTokenName(attr)] = attr.value;
-        return result;
-      }
-      function tokenAttrs_(token) {
-        var result = {};
-        if (token.attrs) for (var i = 0, attr; attr = token.attrs[i]; i++) result[getTokenName(attr)] = attr;
-        return result;
-      }
-      function addUnique(array, items) {
-        for (var i = 0; i < items.length; i++) arrayAdd(array, items[i]);
-      }
-      function adoptStyles(resources, prefix, includeToken) {
-        for (var i = 0, item; item = resources[i]; i++) if (item.type == "style") {
-          if (item.isolate !== styleNamespaceIsolate) item.isolate = prefix + item.isolate;
-          if (!item.includeToken) item.includeToken = includeToken;
-        }
-      }
-      function addStyle(template, token, src, isolatePrefix, namespace) {
-        var text = token.children[0];
-        var url = src ? basis.resource.resolveURI(src, template.baseURI, '<b:style src="{url}"/>') : basis.resource.virtual("css", text ? text.value : "", template.sourceUrl).url;
-        token.sourceUrl = template.sourceUrl;
-        template.resources.push({
-          type: "style",
-          url: url,
-          isolate: isolatePrefix,
-          token: token,
-          includeToken: null,
-          inline: src ? false : text || true,
-          namespace: namespace
-        });
-        return url;
-      }
-      function getLocation(template, loc) {
-        if (loc) return (template.sourceUrl || "") + ":" + loc.start.line + ":" + (loc.start.column + 1);
-      }
-      function addTemplateWarn(template, options, message, loc) {
-        if (loc && options.loc) {
-          message = Object(message);
-          message.loc = typeof loc == "string" ? loc : getLocation(template, loc);
-        }
-        template.warns.push(message);
-      }
-      function applyTokenLocation(template, options, dest, source) {
-        if (options.loc && source && source.loc && !dest.loc) dest.loc = getLocation(template, source.loc);
-      }
       function process(tokens, template, options) {
-        function addTokenLocation(item, token) {
-          applyTokenLocation(template, options, item, token);
-        }
-        function getAttributeValueLocationMap(token) {
-          if (!token || !token.map_) return null;
-          return token.map_.reduce(function(res, part) {
-            if (!part.binding) res[part.value] = getLocation(template, part.loc);
-            return res;
-          }, {});
-        }
-        function addStateInfo(name, type, value) {
-          if (!hasOwnProperty.call(template.states, name)) template.states[name] = {};
-          var info = template.states[name];
-          var isArray = Array.isArray(value);
-          if (!hasOwnProperty.call(info, type) || !isArray) info[type] = isArray ? basis.array(value) : value; else addUnique(info[type], value);
-        }
-        function parseIncludeOptions(str) {
-          var result = {};
-          var pairs = (str || "").trim().split(/\s*,\s*/);
-          for (var i = 0; i < pairs.length; i++) {
-            var pair = pairs[i].split(/\s*:\s*/);
-            if (pair.length != 2) {
-              return {};
-            }
-            result[pair[0]] = pair[1];
-          }
-          return result;
-        }
-        function getAttrByName(token, name) {
-          var offset = typeof token[0] == "number" ? ELEMENT_ATTRIBUTES_AND_CHILDREN : 0;
-          for (var i = offset, attr, attrName; attr = token[i]; i++) {
-            if (attr[TOKEN_TYPE] == TYPE_ATTRIBUTE_EVENT) attrName = "event-" + attr[1]; else attrName = ATTR_NAME_BY_TYPE[attr[TOKEN_TYPE]] || attr[ATTR_NAME];
-            if (attrName == name) return attr;
-          }
-        }
-        function getStyleBindingProperty(attr, name) {
-          var bindings = attr[TOKEN_BINDINGS];
-          if (bindings) for (var i = 0, binding; binding = bindings[i]; i++) if (binding[2] == name) return binding;
-        }
-        function setStylePropertyBinding(host, attr, property, showByDefault, defaultValue) {
-          var styleAttr = getAttrByName(host, "style");
-          if (!styleAttr) {
-            styleAttr = [ TYPE_ATTRIBUTE_STYLE, 0, 0 ];
-            addTokenLocation(styleAttr, attr);
-            host.push(styleAttr);
-          }
-          var binding = attr.binding;
-          var addDefault = false;
-          var show = attr.name == showByDefault;
-          var value = styleAttr[3];
-          if (!binding || binding[0].length != binding[1].length) {
-            addDefault = !(show ^ attr.value === "");
-          } else {
-            var bindings = styleAttr[TOKEN_BINDINGS];
-            binding = binding.concat(property, attr.name);
-            addDefault = show;
-            if (bindings) {
-              arrayRemove(bindings, getStyleBindingProperty(styleAttr, property));
-              bindings.push(binding);
-            } else styleAttr[TOKEN_BINDINGS] = [ binding ];
-          }
-          if (value) value = value.replace(new RegExp(property + "\\s*:\\s*[^;]+(;|$)"), "");
-          if (addDefault) value = (value ? value + " " : "") + defaultValue;
-          styleAttr[3] = value;
-        }
-        function applyShowHideAttribute(host, attr) {
-          if (attr.name == "show" || attr.name == "hide") setStylePropertyBinding(host, attr, "display", "show", "display: none;");
-          if (attr.name == "visible" || attr.name == "hidden") setStylePropertyBinding(host, attr, "visibility", "visible", "visibility: hidden;");
-        }
-        function addRoleAttribute(host, role) {
-          var sourceToken = arguments[2];
-          if (!/[\/\(\)]/.test(role)) {
-            var item = [ TYPE_ATTRIBUTE, [ [ "$role" ], [ 0, role ? "/" + role : "" ] ], 0, "role-marker" ];
-            item.sourceToken = sourceToken;
-            addTokenLocation(item, sourceToken);
-            host.push(item);
-          } else addTemplateWarn(template, options, 'Value for role was ignored as value can\'t contains ["/", "(", ")"]: ' + role, sourceToken.loc);
-        }
-        function applyAttrs(host, attrs) {
-          var styleAttr;
-          var displayAttr;
-          var visibilityAttr;
-          var item;
-          var m;
-          for (var i = 0, attr; attr = attrs[i]; i++) {
-            if (attr.prefix == "b") {
-              switch (attr.name) {
-                case "ref":
-                  var refs = (attr.value || "").trim().split(/\s+/);
-                  for (var j = 0; j < refs.length; j++) addTokenRef(host, refs[j]);
-                  break;
-                case "show":
-                case "hide":
-                  displayAttr = attr;
-                  break;
-                case "visible":
-                case "hidden":
-                  visibilityAttr = attr;
-                  break;
-                case "role":
-                  addRoleAttribute(host, attr.value || "", attr);
-                  break;
-              }
-              continue;
-            }
-            if (m = attr.name.match(ATTR_EVENT_RX)) {
-              item = m[1] == attr.value ? [ TYPE_ATTRIBUTE_EVENT, m[1] ] : [ TYPE_ATTRIBUTE_EVENT, m[1], attr.value ];
-            } else {
-              item = [ attr.type, attr.binding, 0 ];
-              if (attr.type == TYPE_ATTRIBUTE) item.push(getTokenName(attr));
-              if (attr.value && (!options.optimizeSize || !attr.binding || attr.type != TYPE_ATTRIBUTE)) item.push(attr.value);
-              if (attr.type == TYPE_ATTRIBUTE_STYLE) styleAttr = item;
-            }
-            item.valueLocMap = getAttributeValueLocationMap(attr);
-            item.sourceToken = attr;
-            addTokenLocation(item, attr);
-            host.push(item);
-          }
-          if (displayAttr) applyShowHideAttribute(host, displayAttr);
-          if (visibilityAttr) applyShowHideAttribute(host, visibilityAttr);
-          return host;
-        }
-        function modifyAttr(include, token, name, action) {
-          var attrs = tokenAttrs(token);
-          var attrs_ = tokenAttrs_(token);
-          if (name) attrs.name = name;
-          if (!attrs.name) {
-            addTemplateWarn(template, options, "Instruction <b:" + token.name + "> has no `name` attribute", token.loc);
-            return;
-          }
-          if (!ATTR_NAME_RX.test(attrs.name)) {
-            addTemplateWarn(template, options, "Bad attribute name `" + attrs.name + "`", token.loc);
-            return;
-          }
-          var includedToken = tokenRefMap[attrs.ref || "element"];
-          if (includedToken) {
-            if (includedToken.token[TOKEN_TYPE] == TYPE_ELEMENT) {
-              var itAttrs = includedToken.token;
-              var isEvent = attrs.name.match(ATTR_EVENT_RX);
-              var isClassOrStyle = attrs.name == "class" || attrs.name == "style";
-              var itType = isEvent ? TYPE_ATTRIBUTE_EVENT : ATTR_TYPE_BY_NAME[attrs.name] || TYPE_ATTRIBUTE;
-              var valueIdx = ATTR_VALUE_INDEX[itType] || ATTR_VALUE;
-              var valueLocMap = getAttributeValueLocationMap(attrs_.value);
-              var itAttrToken = itAttrs && getAttrByName(itAttrs, attrs.name);
-              if (itAttrToken && action == "set") {
-                template.removals.push({
-                  reason: "<b:" + token.name + ">",
-                  removeToken: token,
-                  includeToken: include,
-                  token: itAttrToken
-                });
-                arrayRemove(itAttrs, itAttrToken);
-                itAttrToken = null;
-              }
-              if (!itAttrToken && (action == "set" || action == "append")) {
-                action = "set";
-                if (isEvent) {
-                  itAttrToken = [ itType, isEvent[1] ];
-                } else {
-                  itAttrToken = [ itType, 0, 0, itType == TYPE_ATTRIBUTE ? attrs.name : "" ];
-                  if (itType == TYPE_ATTRIBUTE) itAttrToken.push("");
-                }
-                if (!itAttrs) {
-                  itAttrs = [];
-                  includedToken.token.push(itAttrs);
-                }
-                itAttrs.push(itAttrToken);
-                itAttrToken.valueLocMap = valueLocMap;
-                addTokenLocation(itAttrToken, token);
-              }
-              switch (action) {
-                case "set":
-                  if (itAttrToken[TOKEN_TYPE] == TYPE_ATTRIBUTE_EVENT) {
-                    if (attrs.value == isEvent[1]) itAttrToken.length = 2; else itAttrToken[valueIdx] = attrs.value;
-                    return;
-                  }
-                  var valueAttr = attrs_.value || {};
-                  itAttrToken[TOKEN_BINDINGS] = valueAttr.binding || 0;
-                  itAttrToken.valueLocMap = valueLocMap;
-                  if (!options.optimizeSize || !itAttrToken[TOKEN_BINDINGS] || isClassOrStyle) itAttrToken[valueIdx] = valueAttr.value || ""; else itAttrToken.length = valueIdx;
-                  if (isClassOrStyle) if (!itAttrToken[TOKEN_BINDINGS] && !itAttrToken[valueIdx]) {
-                    arrayRemove(itAttrs, itAttrToken);
-                    return;
-                  }
-                  break;
-                case "append":
-                  var valueAttr = attrs_.value || {};
-                  var appendValue = valueAttr.value || "";
-                  var appendBinding = valueAttr.binding;
-                  if (!isEvent) {
-                    if (appendBinding) {
-                      var attrBindings = itAttrToken[TOKEN_BINDINGS];
-                      if (attrBindings) {
-                        switch (attrs.name) {
-                          case "style":
-                            for (var i = 0, newBinding; newBinding = appendBinding[i]; i++) {
-                              arrayRemove(attrBindings, getStyleBindingProperty(itAttrToken, newBinding[2]));
-                              attrBindings.push(newBinding);
-                            }
-                            break;
-                          case "class":
-                            attrBindings.push.apply(attrBindings, appendBinding);
-                            break;
-                          default:
-                            appendBinding[0].forEach(function(name) {
-                              arrayAdd(this, name);
-                            }, attrBindings[0]);
-                            for (var i = 0; i < appendBinding[1].length; i++) {
-                              var value = appendBinding[1][i];
-                              if (typeof value == "number") value = attrBindings[0].indexOf(appendBinding[0][value]);
-                              attrBindings[1].push(value);
-                            }
-                        }
-                      } else {
-                        itAttrToken[TOKEN_BINDINGS] = appendBinding;
-                        if (!isClassOrStyle) itAttrToken[TOKEN_BINDINGS][1].unshift(itAttrToken[valueIdx]);
-                      }
-                    } else {
-                      if (!isClassOrStyle && itAttrToken[TOKEN_BINDINGS]) itAttrToken[TOKEN_BINDINGS][1].push(attrs.value);
-                    }
-                  }
-                  if (appendValue) {
-                    if (isEvent || attrs.name == "class") {
-                      var parts = (itAttrToken[valueIdx] || "").trim();
-                      var appendParts = appendValue.trim();
-                      parts = parts ? parts.split(/\s+/) : [];
-                      appendParts = appendParts ? appendParts.split(/\s+/) : [];
-                      for (var i = 0; i < appendParts.length; i++) {
-                        var part = appendParts[i];
-                        basis.array.remove(parts, part);
-                        parts.push(part);
-                      }
-                      itAttrToken[valueIdx] = parts.join(" ");
-                    } else {
-                      itAttrToken[valueIdx] = (itAttrToken[valueIdx] || "") + (itAttrToken[valueIdx] && isClassOrStyle ? " " : "") + appendValue;
-                    }
-                    if (valueLocMap) {
-                      if (itAttrToken.valueLocMap) for (var name in valueLocMap) itAttrToken.valueLocMap[name] = valueLocMap[name]; else itAttrToken.valueLocMap = valueLocMap;
-                    }
-                  }
-                  if (isClassOrStyle && !itAttrToken[TOKEN_BINDINGS] && !itAttrToken[valueIdx]) arrayRemove(itAttrs, itAttrToken);
-                  break;
-                case "remove-class":
-                  if (itAttrToken) {
-                    var valueAttr = attrs_.value || {};
-                    var values = (itAttrToken[valueIdx] || "").split(" ");
-                    var removeValues = (valueAttr.value || "").split(" ");
-                    var bindings = itAttrToken[TOKEN_BINDINGS];
-                    var removedValues = [];
-                    var removedBindings = 0;
-                    if (valueAttr.binding && bindings) {
-                      for (var i = 0, removeBinding; removeBinding = valueAttr.binding[i]; i++) for (var j = bindings.length - 1, classBinding; classBinding = bindings[j]; j--) {
-                        var prefix = classBinding[0];
-                        var bindingName = classBinding[3] || classBinding[1];
-                        if (prefix === removeBinding[0] && bindingName === removeBinding[1]) {
-                          bindings.splice(j, 1);
-                          if (!removedBindings) removedBindings = [ classBinding ]; else removedBindings.push(classBinding);
-                        }
-                      }
-                      if (!bindings.length) itAttrToken[TOKEN_BINDINGS] = 0;
-                    }
-                    for (var i = 0; i < removeValues.length; i++) {
-                      if (values.indexOf(removeValues[i]) != -1) removedValues.push(removeValues[i]);
-                      arrayRemove(values, removeValues[i]);
-                      if (itAttrToken.valueLocMap) delete itAttrToken.valueLocMap[removeValues[i]];
-                    }
-                    itAttrToken[valueIdx] = values.join(" ");
-                    if (!bindings.length && !values.length) arrayRemove(itAttrs, itAttrToken);
-                    if (removedValues.length || removedBindings.length) template.removals.push({
-                      reason: "<b:" + token.name + ">",
-                      removeToken: token,
-                      includeToken: include,
-                      token: [ TYPE_ATTRIBUTE_CLASS, removedBindings, 0, removedValues.join(" ") ]
-                    });
-                  }
-                  break;
-                case "remove":
-                  if (itAttrToken) {
-                    arrayRemove(itAttrs, itAttrToken);
-                    template.removals.push({
-                      reason: "<b:" + token.name + ">",
-                      removeToken: token,
-                      includeToken: include,
-                      token: itAttrToken
-                    });
-                  }
-                  break;
-              }
-            } else {
-              addTemplateWarn(template, options, "Attribute modificator is not reference to element token (reference name: " + (attrs.ref || "element") + ")", token.loc);
-            }
-          }
-        }
         var result = [];
         for (var i = 0, token, item; token = tokens[i]; i++) {
           var refs = refList(token);
-          var bindings = refs && refs.length == 1 ? refs[0] : 0;
+          var bindings = bindingList(token);
           switch (token.type) {
             case TYPE_ELEMENT:
               if (token.prefix == "b") {
-                var elAttrs = tokenAttrs(token);
-                var elAttrs_ = tokenAttrs_(token);
-                switch (token.name) {
-                  case "style":
-                    var useStyle = true;
-                    if (elAttrs.options) {
-                      var filterOptions = parseIncludeOptions(elAttrs.options);
-                      for (var name in filterOptions) useStyle = useStyle && filterOptions[name] == options.includeOptions[name];
-                    }
-                    if (useStyle) {
-                      var namespaceAttrName = elAttrs.namespace ? "namespace" : "ns";
-                      var styleNamespace = elAttrs[namespaceAttrName];
-                      var styleIsolate = styleNamespace ? styleNamespaceIsolate : "";
-                      var src = addStyle(template, token, elAttrs.src, styleIsolate, styleNamespace);
-                      if (styleNamespace) {
-                        if (src in styleNamespaceIsolate == false) styleNamespaceIsolate[src] = genIsolateMarker();
-                        template.styleNSPrefix[styleNamespace] = {
-                          loc: getLocation(template, elAttrs_[namespaceAttrName].loc),
-                          used: false,
-                          name: styleNamespace,
-                          prefix: styleNamespaceIsolate[src]
-                        };
-                      }
-                    } else {
-                      token.sourceUrl = template.sourceUrl;
-                      template.resources.push({
-                        type: "style",
-                        url: null,
-                        isolate: styleIsolate,
-                        token: token,
-                        includeToken: null,
-                        inline: elAttrs.src ? false : token.children[0] || true,
-                        namespace: styleNamespace
-                      });
-                    }
-                    break;
-                  case "svg":
-                    var svgAttributes = [];
-                    var svgUse = [ TYPE_ELEMENT, 0, 0, "svg:use" ];
-                    var svgElement = [ TYPE_ELEMENT, bindings, refs, "svg:svg", svgUse ];
-                    for (var key in elAttrs_) {
-                      var attrToken = elAttrs_[key];
-                      switch (getTokenName(attrToken)) {
-                        case "src":
-                          var svgUrl = basis.resource.resolveURI(elAttrs.src, template.baseURI, "<b:" + token.name + ' src="{url}"/>');
-                          arrayAdd(template.deps, basis.resource(svgUrl));
-                          template.resources.push({
-                            type: "svg",
-                            url: svgUrl
-                          });
-                          break;
-                        case "use":
-                          applyAttrs(svgUse, [ basis.object.merge(attrToken, {
-                            prefix: "xlink",
-                            name: "href"
-                          }) ]);
-                          break;
-                        default:
-                          svgAttributes.push(attrToken);
-                      }
-                    }
-                    result.push(applyAttrs(svgElement, svgAttributes));
-                    break;
-                  case "isolate":
-                    if (!template.isolate) template.isolate = elAttrs.prefix || options.isolate || genIsolateMarker(); else addTemplateWarn(template, options, "<b:isolate> is already set to `" + template.isolate + "`", token.loc);
-                    break;
-                  case "l10n":
-                    if (elAttrs.src) options.dictURI = basis.resource.resolveURI(elAttrs.src, template.baseURI, "<b:" + token.name + ' src="{url}"/>');
-                    break;
-                  case "define":
-                    if ("name" in elAttrs == false) addTemplateWarn(template, options, "<b:define> has no `name` attribute", token.loc);
-                    if ("type" in elAttrs == false) addTemplateWarn(template, options, "<b:define> has no `type` attribute", token.loc);
-                    if (hasOwnProperty.call(options.defines, elAttrs.name)) addTemplateWarn(template, options, "<b:define> for `" + elAttrs.name + "` has already defined", token.loc);
-                    if ("name" in elAttrs && "type" in elAttrs && !hasOwnProperty.call(options.defines, elAttrs.name)) {
-                      var bindingName = elAttrs.from || elAttrs.name;
-                      var defineName = elAttrs.name;
-                      var define = false;
-                      var defaultIndex;
-                      var values;
-                      switch (elAttrs.type) {
-                        case "bool":
-                          define = [ bindingName, CLASS_BINDING_BOOL, defineName, elAttrs["default"] == "true" ? 1 : 0 ];
-                          addStateInfo(bindingName, "bool", true);
-                          if ("default" in elAttrs && !elAttrs["default"]) addTemplateWarn(template, options, "Bool <b:define> has no value as default (value ignored)", elAttrs_["default"] && elAttrs_["default"].loc);
-                          break;
-                        case "invert":
-                          define = [ bindingName, CLASS_BINDING_INVERT, defineName, !elAttrs["default"] || elAttrs["default"] == "true" ? 1 : 0 ];
-                          addStateInfo(bindingName, "invert", false);
-                          if ("default" in elAttrs && !elAttrs["default"]) addTemplateWarn(template, options, "Invert <b:define> has no value as default (value ignored)", elAttrs_["default"] && elAttrs_["default"].loc);
-                          break;
-                        case "enum":
-                          if ("values" in elAttrs == false) {
-                            addTemplateWarn(template, options, "Enum <b:define> has no `values` attribute", token.loc);
-                            break;
-                          }
-                          values = (elAttrs.values || "").trim();
-                          if (!values) {
-                            addTemplateWarn(template, options, "Enum <b:define> has no variants (`values` attribute is empty)", elAttrs_.values && elAttrs_.values.loc);
-                            break;
-                          }
-                          values = values.split(/\s+/);
-                          defaultIndex = values.indexOf(elAttrs["default"]);
-                          if ("default" in elAttrs && defaultIndex == -1) addTemplateWarn(template, options, "Enum <b:define> has bad value as default (value ignored)", elAttrs_["default"] && elAttrs_["default"].loc);
-                          define = [ bindingName, CLASS_BINDING_ENUM, defineName, defaultIndex + 1, values ];
-                          addStateInfo(bindingName, "enum", values);
-                          break;
-                        default:
-                          addTemplateWarn(template, options, "Bad type in <b:define> for `" + defineName + "`: " + elAttrs.type, elAttrs_.type && elAttrs_.type.valueLoc);
-                      }
-                      if (define) {
-                        addTokenLocation(define, token);
-                        options.defines[defineName] = define;
-                      }
-                    }
-                    break;
-                  case "text":
-                    var text = token.children[0];
-                    tokens[i--] = basis.object.extend(text, {
-                      refs: (elAttrs.ref || "").trim().split(/\s+/),
-                      value: "notrim" in elAttrs ? text.value : text.value.replace(/^\s*[\r\n]+|[\r\n]+\s*$/g, "")
-                    });
-                    break;
-                  case "include":
-                    var templateSrc = elAttrs.src;
-                    if (templateSrc) {
-                      var resource;
-                      var basisWarn = basis.dev.warn;
-                      basis.dev.warn = function() {
-                        addTemplateWarn(template, options, basis.array(arguments).join(" "), token.loc);
-                        if (!basis.NODE_ENV) basisWarn.apply(this, arguments);
-                      };
-                      resource = resolveResource(templateSrc, template.baseURI);
-                      basis.dev.warn = basisWarn;
-                      if (!resource) {
-                        addTemplateWarn(template, options, '<b:include src="' + templateSrc + '"> is not resolved, instruction ignored', token.loc);
-                        continue;
-                      }
-                      if (includeStack.indexOf(resource) == -1) {
-                        var isolatePrefix = elAttrs_.isolate ? elAttrs_.isolate.value || genIsolateMarker() : "";
-                        var includeOptions = elAttrs.options ? parseIncludeOptions(elAttrs.options) : null;
-                        var declarationOptions = basis.object.merge(options, {
-                          includeOptions: includeOptions
-                        });
-                        var decl = getDeclFromSource(resource, "", true, declarationOptions);
-                        arrayAdd(template.deps, resource);
-                        template.includes.push({
-                          token: token,
-                          resource: resource,
-                          nested: decl.includes
-                        });
-                        if (decl.deps) addUnique(template.deps, decl.deps);
-                        if (decl.warns) template.warns.push.apply(template.warns, decl.warns);
-                        if (decl.removals) template.removals.push.apply(template.removals, decl.removals);
-                        if (decl.resources) {
-                          var resources = decl.resources;
-                          if ("no-style" in elAttrs) resources = resources.filter(function(item) {
-                            return item.type != "style";
-                          }); else adoptStyles(resources, isolatePrefix, token);
-                          template.resources.unshift.apply(template.resources, resources);
-                        }
-                        var instructions = basis.array(token.children);
-                        var styleNSIsolate = {
-                          map: options.styleNSIsolateMap,
-                          prefix: genIsolateMarker()
-                        };
-                        var tokenRefMap = normalizeRefs(decl.tokens, styleNSIsolate);
-                        for (var key in decl.styleNSPrefix) template.styleNSPrefix[styleNSIsolate.prefix + key] = basis.object.merge(decl.styleNSPrefix[key], {
-                          used: hasOwnProperty.call(options.styleNSIsolateMap, styleNSIsolate.prefix + key)
-                        });
-                        if (isolatePrefix) {
-                          isolateTokens(decl.tokens, isolatePrefix);
-                          if (decl.removals) decl.removals.forEach(function(item) {
-                            isolateTokens([ item.token ], isolatePrefix);
-                          });
-                        }
-                        for (var includeAttrName in elAttrs_) switch (includeAttrName) {
-                          case "class":
-                            instructions.unshift({
-                              type: TYPE_ELEMENT,
-                              prefix: "b",
-                              name: "append-class",
-                              attrs: [ basis.object.complete({
-                                name: "value"
-                              }, elAttrs_["class"]) ]
-                            });
-                            break;
-                          case "id":
-                            instructions.unshift({
-                              type: TYPE_ELEMENT,
-                              prefix: "b",
-                              name: "set-attr",
-                              attrs: [ {
-                                type: TYPE_ATTRIBUTE,
-                                name: "name",
-                                value: "id"
-                              }, basis.object.complete({
-                                name: "value"
-                              }, elAttrs_.id) ]
-                            });
-                            break;
-                          case "ref":
-                            if (tokenRefMap.element) elAttrs.ref.trim().split(/\s+/).map(function(refName) {
-                              addTokenRef(tokenRefMap.element.token, refName);
-                            });
-                            break;
-                          case "show":
-                          case "hide":
-                          case "visible":
-                          case "hidden":
-                            var tokenRef = tokenRefMap.element;
-                            var token = tokenRef && tokenRef.token;
-                            if (token && token[TOKEN_TYPE] == TYPE_ELEMENT) applyShowHideAttribute(token, elAttrs_[includeAttrName]);
-                            break;
-                          case "role":
-                            var role = elAttrs_.role.value;
-                            if (role) {
-                              if (!/[\/\(\)]/.test(role)) {
-                                var loc;
-                                loc = getLocation(template, elAttrs_.role.loc);
-                                applyRole(decl.tokens, role, elAttrs_.role, loc);
-                              } else addTemplateWarn(template, options, 'Value for role was ignored as value can\'t contains ["/", "(", ")"]: ' + role, elAttrs_.role.loc);
-                            }
-                            break;
-                        }
-                        for (var j = 0, child; child = instructions[j]; j++) {
-                          if (child.type == TYPE_ELEMENT && child.prefix == "b") {
-                            switch (child.name) {
-                              case "style":
-                                var childAttrs = tokenAttrs(child);
-                                var childAttrs_ = tokenAttrs_(child);
-                                var useStyle = true;
-                                if (childAttrs.options) {
-                                  var filterOptions = parseIncludeOptions(childAttrs.options);
-                                  for (var name in filterOptions) useStyle = useStyle && filterOptions[name] == includeOptions[name];
-                                }
-                                if (useStyle) {
-                                  var namespaceAttrName = childAttrs.namespace ? "namespace" : "ns";
-                                  var styleNamespace = childAttrs[namespaceAttrName];
-                                  var styleIsolate = styleNamespace ? styleNamespaceIsolate : isolatePrefix;
-                                  var src = addStyle(template, child, childAttrs.src, styleIsolate, styleNamespace);
-                                  if (styleNamespace) {
-                                    if (src in styleNamespaceIsolate == false) styleNamespaceIsolate[src] = genIsolateMarker();
-                                    template.styleNSPrefix[styleNSIsolate.prefix + styleNamespace] = {
-                                      loc: getLocation(template, childAttrs_[namespaceAttrName].loc),
-                                      used: false,
-                                      name: styleNamespace,
-                                      prefix: styleNamespaceIsolate[src]
-                                    };
-                                  }
-                                } else {
-                                  child.sourceUrl = template.sourceUrl;
-                                  template.resources.push([ null, styleIsolate, child, token, childAttrs.src ? false : child.children[0] || true, styleNamespace ]);
-                                }
-                                break;
-                              case "replace":
-                              case "remove":
-                              case "before":
-                              case "after":
-                                var replaceOrRemove = child.name == "replace" || child.name == "remove";
-                                var childAttrs = tokenAttrs(child);
-                                var ref = "ref" in childAttrs || !replaceOrRemove ? childAttrs.ref : "element";
-                                var tokenRef = ref && tokenRefMap[ref];
-                                if (tokenRef) {
-                                  var parent = tokenRef.owner;
-                                  var pos = parent.indexOf(tokenRef.token);
-                                  if (pos != -1) {
-                                    var args = [ pos + (child.name == "after"), replaceOrRemove ];
-                                    if (child.name != "remove") args = args.concat(process(child.children, template, options) || []);
-                                    parent.splice.apply(parent, args);
-                                    if (replaceOrRemove) template.removals.push({
-                                      reason: "<b:" + child.name + ">",
-                                      removeToken: child,
-                                      includeToken: token,
-                                      token: tokenRef.token
-                                    });
-                                  }
-                                }
-                                break;
-                              case "prepend":
-                              case "append":
-                                var childAttrs = tokenAttrs(child);
-                                var ref = "ref" in childAttrs ? childAttrs.ref : "element";
-                                var tokenRef = ref && tokenRefMap[ref];
-                                var token = tokenRef && tokenRef.token;
-                                if (token && token[TOKEN_TYPE] == TYPE_ELEMENT) {
-                                  var children = process(child.children, template, options) || [];
-                                  if (child.name == "prepend") token.splice.apply(token, [ ELEMENT_ATTRIBUTES_AND_CHILDREN, 0 ].concat(children)); else token.push.apply(token, children);
-                                }
-                                break;
-                              case "show":
-                              case "hide":
-                              case "visible":
-                              case "hidden":
-                                var childAttrs = tokenAttrs(child);
-                                var ref = "ref" in childAttrs ? childAttrs.ref : "element";
-                                var tokenRef = ref && tokenRefMap[ref];
-                                var token = tokenRef && tokenRef.token;
-                                if (token && token[TOKEN_TYPE] == TYPE_ELEMENT) {
-                                  var expr = tokenAttrs_(child).expr;
-                                  if (!expr) {
-                                    addTemplateWarn(template, options, "Instruction <b:" + child.name + "> has no `expr` attribute", child.loc);
-                                    break;
-                                  }
-                                  applyShowHideAttribute(token, basis.object.complete({
-                                    name: child.name
-                                  }, tokenAttrs_(child).expr));
-                                }
-                                break;
-                              case "attr":
-                              case "set-attr":
-                                modifyAttr(token, child, false, "set");
-                                break;
-                              case "append-attr":
-                                modifyAttr(token, child, false, "append");
-                                break;
-                              case "remove-attr":
-                                modifyAttr(token, child, false, "remove");
-                                break;
-                              case "class":
-                              case "append-class":
-                                modifyAttr(token, child, "class", "append");
-                                break;
-                              case "set-class":
-                                modifyAttr(token, child, "class", "set");
-                                break;
-                              case "remove-class":
-                                var childAttrs_ = tokenAttrs_(child);
-                                var valueAttr = childAttrs_.value;
-                                if (valueAttr) {
-                                  valueAttr.value = valueAttr.value.split(/\s+/).map(function(name) {
-                                    return name.indexOf(":") > 0 ? styleNSIsolate.prefix + name : name;
-                                  }).join(" ");
-                                  if (valueAttr.binding) valueAttr.binding.forEach(function(bind) {
-                                    if (bind[0].indexOf(":") > 0) bind[0] = styleNSIsolate.prefix + bind[0];
-                                  });
-                                  if (valueAttr.map_) valueAttr.map_.forEach(function(item) {
-                                    if (item.value.indexOf(":") > 0) item.value = styleNSIsolate.prefix + item.value;
-                                  });
-                                }
-                                modifyAttr(token, child, "class", "remove-class");
-                                break;
-                              case "add-ref":
-                                var childAttrs = tokenAttrs(child);
-                                var ref = "ref" in childAttrs ? childAttrs.ref : "element";
-                                var tokenRef = ref && tokenRefMap[ref];
-                                var token = tokenRef && tokenRef.token;
-                                if (token && childAttrs.name) addTokenRef(token, childAttrs.name);
-                                break;
-                              case "remove-ref":
-                                var childAttrs = tokenAttrs(child);
-                                var ref = "ref" in childAttrs ? childAttrs.ref : "element";
-                                var tokenRef = ref && tokenRefMap[ref];
-                                var token = tokenRef && tokenRef.token;
-                                if (token) removeTokenRef(token, childAttrs.name || childAttrs.ref);
-                                break;
-                              case "role":
-                              case "set-role":
-                                var childAttrs = tokenAttrs(child);
-                                var ref = "ref" in childAttrs ? childAttrs.ref : "element";
-                                var tokenRef = ref && tokenRefMap[ref];
-                                var token = tokenRef && tokenRef.token;
-                                if (token) {
-                                  arrayRemove(token, getAttrByName(token, "role-marker"));
-                                  addRoleAttribute(token, childAttrs.value || "", child);
-                                }
-                                break;
-                              case "remove-role":
-                                var childAttrs = tokenAttrs(child);
-                                var ref = "ref" in childAttrs ? childAttrs.ref : "element";
-                                var tokenRef = ref && tokenRefMap[ref];
-                                var token = tokenRef && tokenRef.token;
-                                if (token) arrayRemove(token, getAttrByName(token, "role-marker"));
-                                break;
-                              default:
-                                addTemplateWarn(template, options, "Unknown instruction tag: <b:" + child.name + ">", child.loc);
-                            }
-                          } else {
-                            decl.tokens.push.apply(decl.tokens, process([ child ], template, options) || []);
-                          }
-                        }
-                        if (tokenRefMap.element) removeTokenRef(tokenRefMap.element.token, "element");
-                        result.push.apply(result, decl.tokens);
-                      } else {
-                        var stack = includeStack.slice(includeStack.indexOf(resource) || 0).concat(resource).map(function(res) {
-                          if (res instanceof Template) res = res.source;
-                          return res.id || res.url || "[inline template]";
-                        });
-                        template.warns.push("Recursion: ", stack.join(" -> "));
-                        basis.dev.warn("Recursion in template: ", stack.join(" -> "));
-                      }
-                    }
-                    break;
-                  default:
-                    addTemplateWarn(template, options, "Unknown instruction tag: <b:" + token.name + ">", token.loc);
+                if (topLevelInstructions.indexOf(token.name) === -1) options.allowTopInstruction = false; else if (!options.allowTopInstruction) utils.addTemplateWarn(template, options, "Instruction tag <b:" + token.name + "> should be placed in the beginning of template before any markup or instructions other than " + humanTopLevelInstrcutionList + ". Currently it may works but will be ignored in future.", token.loc);
+                if (!elementHandlers.hasOwnProperty(token.name)) {
+                  utils.addTemplateWarn(template, options, "Unknown instruction tag: <b:" + token.name + ">", token.loc);
+                  continue;
                 }
+                elementHandlers[token.name](template, options, token, result);
                 continue;
               }
+              options.allowTopInstruction = false;
               item = [ 1, bindings, refs, getTokenName(token) ];
-              applyAttrs(item, token.attrs);
-              item.push.apply(item, process(token.children, template, options) || []);
-              addTokenLocation(item, token);
-              item.sourceToken = token;
+              applyAttrs(template, options, item, token.attrs);
+              item.push.apply(item, process(token.children, template, options));
               break;
             case TYPE_TEXT:
               if (refs && refs.length == 2 && arraySearch(refs, "element")) bindings = refs[+!refs.lastSearchIndex];
               item = [ 3, bindings, refs ];
               if (!refs || token.value != "{" + refs.join("|") + "}") item.push(token.value);
-              addTokenLocation(item, token);
-              item.sourceToken = token;
               break;
             case TYPE_COMMENT:
               if (options.optimizeSize && !bindings && !refs) continue;
               item = [ 8, bindings, refs ];
               if (!options.optimizeSize) if (!refs || token.value != "{" + refs.join("|") + "}") item.push(token.value);
-              addTokenLocation(item, token);
-              item.sourceToken = token;
               break;
+            default:
+              utils.addTemplateWarn(template, options, "Unknown token type: " + token.type, token);
+              continue;
           }
-          while (item[item.length - 1] === 0) item.pop();
+          options.allowTopInstruction = false;
+          utils.addTokenLocation(template, options, item, token);
+          item.sourceToken = token;
           result.push(item);
         }
-        return result.length ? result : 0;
+        return result;
       }
       function absl10n(value, dictURI, l10nMap) {
         if (typeof value == "string") {
@@ -1464,65 +528,6 @@ var __resources__ = {
         }
         return value;
       }
-      function applyRole(tokens, role, sourceToken, location, stIdx) {
-        for (var i = stIdx || 0, token; token = tokens[i]; i++) {
-          var tokenType = token[TOKEN_TYPE];
-          switch (tokenType) {
-            case TYPE_ELEMENT:
-              applyRole(token, role, sourceToken, location, ELEMENT_ATTRIBUTES_AND_CHILDREN);
-              break;
-            case TYPE_ATTRIBUTE:
-              if (token[ATTR_NAME] == "role-marker") {
-                var roleExpression = token[TOKEN_BINDINGS][1];
-                var currentRole = roleExpression[1];
-                roleExpression[1] = "/" + role + (currentRole ? "/" + currentRole : "");
-                token.sourceToken = sourceToken;
-                token.loc = location;
-              }
-              break;
-          }
-        }
-      }
-      function normalizeRefs(tokens, isolate, map, stIdx) {
-        function processName(name) {
-          if (name.indexOf(":") <= 0) return name;
-          var prefix = name.split(":")[0];
-          isolate.map[isolate.prefix + prefix] = prefix;
-          return isolate.prefix + name;
-        }
-        if (!map) map = {};
-        for (var i = stIdx || 0, token; token = tokens[i]; i++) {
-          var tokenType = token[TOKEN_TYPE];
-          var refs = token[TOKEN_REFS];
-          if (isolate && tokenType == TYPE_ATTRIBUTE_CLASS) {
-            var bindings = token[TOKEN_BINDINGS];
-            var valueIndex = ATTR_VALUE_INDEX[tokenType];
-            if (token[valueIndex]) token[valueIndex] = token[valueIndex].split(/\s+/).map(processName).join(" ");
-            if (token.valueLocMap) {
-              var oldValueLocMap = token.valueLocMap;
-              token.valueLocMap = {};
-              for (var name in oldValueLocMap) token.valueLocMap[processName(name)] = oldValueLocMap[name];
-            }
-            if (bindings) for (var k = 0, bind; bind = bindings[k]; k++) bind[0] = processName(bind[0]);
-          }
-          if (tokenType != TYPE_ATTRIBUTE_EVENT && refs) {
-            for (var j = refs.length - 1, refName; refName = refs[j]; j--) {
-              if (refName.indexOf(":") != -1) {
-                removeTokenRef(token, refName);
-                continue;
-              }
-              if (map[refName]) removeTokenRef(map[refName].token, refName);
-              if (token[TOKEN_BINDINGS] == refName) token[TOKEN_BINDINGS] = j + 1;
-              map[refName] = {
-                owner: tokens,
-                token: token
-              };
-            }
-          }
-          if (tokenType === TYPE_ELEMENT) normalizeRefs(token, isolate, map, ELEMENT_ATTRIBUTES_AND_CHILDREN);
-        }
-        return map;
-      }
       function applyDefines(tokens, template, options, stIdx) {
         for (var i = stIdx || 0, token; token = tokens[i]; i++) {
           var tokenType = token[TOKEN_TYPE];
@@ -1536,7 +541,7 @@ var __resources__ = {
                 var binding = absl10n(bindings, options.dictURI, template.l10n);
                 token[TOKEN_BINDINGS] = binding || 0;
                 if (binding === false) {
-                  addTemplateWarn(template, options, "Dictionary for l10n binding on text node can't be resolved: {" + bindings + "}", token.loc);
+                  utils.addTemplateWarn(template, options, "Dictionary for l10n binding on text node can't be resolved: {" + bindings + "}", token.loc);
                   token[TEXT_VALUE] = "{" + bindings + "}";
                 }
               }
@@ -1547,7 +552,7 @@ var __resources__ = {
                 for (var j = array.length - 1; j >= 0; j--) {
                   var binding = absl10n(array[j], options.dictURI, template.l10n);
                   if (binding === false) {
-                    addTemplateWarn(template, options, "Dictionary for l10n binding on attribute can't be resolved: {" + array[j] + "}", token.loc);
+                    utils.addTemplateWarn(template, options, "Dictionary for l10n binding on attribute can't be resolved: {" + array[j] + "}", token.loc);
                     var expr = bindings[1];
                     for (var k = 0; k < expr.length; k++) if (typeof expr[k] == "number") {
                       if (expr[k] == j) expr[k] = "{" + array[j] + "}"; else if (expr[k] > j) expr[k] = expr[k] - 1;
@@ -1562,7 +567,7 @@ var __resources__ = {
               if (bindings) {
                 for (var k = 0, bind; bind = bindings[k]; k++) {
                   if (bind.length > 2) continue;
-                  applyTokenLocation(template, options, bind, bind.info_);
+                  utils.addTokenLocation(template, options, bind, bind.info_);
                   var bindNameParts = bind[1].split(":");
                   var bindName = bindNameParts.pop();
                   var bindPrefix = bindNameParts.pop() || "";
@@ -1573,7 +578,7 @@ var __resources__ = {
                     define.used = true;
                   } else {
                     bind.push(0);
-                    addTemplateWarn(template, options, "Unpredictable class binding: " + bind[0] + "{" + bind[1] + "}", bind.loc);
+                    utils.addTemplateWarn(template, options, "Unpredictable class binding: " + bind[0] + "{" + bind[1] + "}", bind.loc);
                   }
                 }
                 if (options.optimizeSize) {
@@ -1585,80 +590,52 @@ var __resources__ = {
           }
         }
       }
-      function isolateTokens(tokens, isolate, template, options, stIdx) {
-        function processName(name) {
-          if (name.indexOf(":") == -1) return isolate + name;
-          if (!template) return name;
-          var parts = name.split(":");
-          if (!parts[0]) return parts[1];
-          var namespace = hasOwnProperty.call(template.styleNSPrefix, parts[0]) ? template.styleNSPrefix[parts[0]] : false;
-          if (!namespace) {
-            var isolatedPrefix = options.styleNSIsolateMap[parts[0]];
-            var oldPrefix = parts[0];
-            var fullName = arguments[1];
-            var loc = arguments[2];
-            if (fullName) {
-              if (isolatedPrefix) fullName = fullName.replace(oldPrefix, isolatedPrefix);
-              addTemplateWarn(template, options, "Namespace `" + (isolatedPrefix || oldPrefix) + "` is not defined: " + fullName, loc);
-            }
-            return false;
-          } else {
-            namespace.used = true;
-            return namespace.prefix + parts[1];
-          }
-        }
-        for (var i = stIdx || 0, token; token = tokens[i]; i++) {
-          var tokenType = token[TOKEN_TYPE];
-          if (tokenType == TYPE_ELEMENT) isolateTokens(token, isolate, template, options, ELEMENT_ATTRIBUTES_AND_CHILDREN);
-          if (tokenType == TYPE_ATTRIBUTE_CLASS) {
-            var bindings = token[TOKEN_BINDINGS];
-            var valueIndex = ATTR_VALUE_INDEX[tokenType];
-            if (token[valueIndex]) token[valueIndex] = token[valueIndex].split(/\s+/).map(function(name) {
-              return processName(name, name, token.valueLocMap ? token.valueLocMap[name] : null);
-            }).filter(Boolean).join(" ");
-            if (bindings) {
-              for (var j = 0, bind, prefix, removed; bind = bindings[j]; j++) {
-                prefix = processName(bind[0], bind[0] + "{" + bind[1] + "}", bind.loc);
-                if (prefix === false) {
-                  removed = true;
-                  bindings[j] = null;
-                } else bind[0] = prefix;
-              }
-              if (removed) {
-                bindings = bindings.filter(Boolean);
-                token[TOKEN_BINDINGS] = bindings.length ? bindings : 0;
-              }
-            }
-            if (token.valueLocMap) {
-              var oldValueLocMap = token.valueLocMap;
-              token.valueLocMap = {};
-              for (var name in oldValueLocMap) {
-                var newKey = processName(name);
-                if (newKey) token.valueLocMap[newKey] = oldValueLocMap[name];
-              }
+      function findNonSpecialToken(tokens) {
+        function find(tokens, offset) {
+          for (var i = offset; i < tokens.length; i++) {
+            var token = tokens[i];
+            var type = token[TOKEN_TYPE];
+            var result;
+            if (type == TYPE_ELEMENT || type == TYPE_TEXT || type == TYPE_COMMENT) return token;
+            if (type == TYPE_CONTENT) {
+              result = find(token, CONTENT_CHILDREN);
+              if (result) return result;
             }
           }
+          return null;
         }
-      }
-      function resourceHash(resource) {
-        return [ resource.type, resource.url, resource.isolate ].join(";");
+        return find(tokens, 0);
       }
       return function makeDeclaration(source, baseURI, options, sourceUrl, sourceOrigin) {
         var warns = [];
         var source_;
         options = basis.object.slice(options);
+        options.Template = Template;
+        options.genIsolateMarker = genIsolateMarker;
+        options.resolveResource = resolveResource;
+        options.getDeclFromSource = getDeclFromSource;
+        options.makeDeclaration = makeDeclaration;
+        options.process = process;
+        options.includeStack = includeStack;
         options.includeOptions = options.includeOptions || {};
+        options.templates = {};
         options.defines = {};
         options.dictURI = sourceUrl ? basis.path.resolve(sourceUrl) : baseURI || "";
+        options.allowTopInstruction = true;
         options.styleNSIsolateMap = {};
         options.loc = true;
         options.range = true;
+        if (options.dictURI) {
+          var extname = basis.path.extname(options.dictURI);
+          if (extname && extname != ".l10n") options.dictURI = options.dictURI.substr(0, options.dictURI.length - extname.length) + ".l10n";
+        }
         var result = {
           sourceUrl: sourceUrl,
           baseURI: baseURI || "",
           tokens: null,
           includes: [],
           deps: [],
+          templates: {},
           isolate: false,
           styleNSPrefix: {},
           resources: [],
@@ -1667,11 +644,7 @@ var __resources__ = {
         };
         result.removals = [];
         result.states = {};
-        if (options.dictURI) {
-          var extname = basis.path.extname(options.dictURI);
-          if (extname && extname != ".l10n") options.dictURI = options.dictURI.substr(0, options.dictURI.length - extname.length) + ".l10n";
-        }
-        if (!source.templateTokens) {
+        if (!Array.isArray(source)) {
           source_ = source;
           source = tokenize(String(source), {
             loc: !!options.loc,
@@ -1679,17 +652,35 @@ var __resources__ = {
           });
         }
         if (source.warns) source.warns.forEach(function(warn) {
-          addTemplateWarn(result, options, warn[0], warn[1].loc);
+          utils.addTemplateWarn(result, options, warn[0], warn[1].loc);
         });
         includeStack.push(sourceOrigin !== true && sourceOrigin || {});
         result.tokens = process(source, result, options);
         includeStack.pop();
-        if (!result.tokens) result.tokens = [ [ TYPE_TEXT, 0, 0, "" ] ];
         if (source_) result.tokens.source_ = source_;
-        addTokenRef(result.tokens[0], "element");
-        normalizeRefs(result.tokens);
+        result.tokens.push([ TYPE_CONTENT, 0 ]);
+        var tokenRefMap = normalizeRefs(result.tokens);
+        var elementToken = findNonSpecialToken(result.tokens);
+        var contentNodeRef = tokenRefMap[":content"];
+        if (contentNodeRef.node[CONTENT_PRIORITY] > 1) contentNodeRef.node[CONTENT_PRIORITY] = 1;
+        contentNodeRef.overrided.forEach(function(overridedContentNodeRef) {
+          var nodeIndex = overridedContentNodeRef.parent.indexOf(overridedContentNodeRef.node);
+          if (nodeIndex != -1) overridedContentNodeRef.parent.splice.apply(overridedContentNodeRef.parent, [ nodeIndex, 1 ].concat(overridedContentNodeRef.node.slice(CONTENT_CHILDREN)));
+          if (overridedContentNodeRef.node[consts.CONTENT_PRIORITY] > 0) result.removals.push({
+            reason: "<b:content/>",
+            removeToken: contentNodeRef.node,
+            includeToken: overridedContentNodeRef.node.includeToken,
+            token: overridedContentNodeRef.node,
+            node: overridedContentNodeRef.node
+          });
+        });
+        if (!elementToken) {
+          elementToken = [ TYPE_TEXT, 0, 0, "" ];
+          result.tokens.unshift(elementToken);
+        }
+        if (!tokenRefMap.element) addTokenRef(elementToken, "element");
         applyDefines(result.tokens, result, options);
-        if (/^[^a-z]/i.test(result.isolate)) basis.dev.error("basis.template: isolation prefix `" + result.isolate + "` should not starts with symbol other than letter, otherwise it leads to incorrect css class names and broken styles");
+        if (/^[^a-z_-]/i.test(result.isolate)) basis.dev.error("basis.template: isolation prefix `" + result.isolate + "` should not starts with symbol other than letter, underscore or dash, otherwise it leads to incorrect css class names and broken styles");
         if (includeStack.length == 0) {
           isolateTokens(result.tokens, result.isolate || "", result, options);
           result.warns = [];
@@ -1699,7 +690,7 @@ var __resources__ = {
           result.warns = warns;
           for (var key in result.styleNSPrefix) {
             var styleNSPrefix = result.styleNSPrefix[key];
-            if (!styleNSPrefix.used) addTemplateWarn(result, options, "Unused namespace: " + styleNSPrefix.name, styleNSPrefix.loc);
+            if (!styleNSPrefix.used) utils.addTemplateWarn(result, options, "Unused namespace: " + styleNSPrefix.name, styleNSPrefix.loc);
           }
           if (result.isolate) for (var i = 0, item; item = result.resources[i]; i++) if (item.type == "style" && item.isolate !== styleNamespaceIsolate) item.isolate = result.isolate + item.isolate;
           var originalResources = result.resources;
@@ -1753,10 +744,10 @@ var __resources__ = {
             };
           });
           result.styles = originalResources.map(function(item) {
-            var sourceUrl = item.url || tokenAttrs(item.token).src;
+            var sourceUrl = item.url || utils.getTokenAttrValues(item.token).src;
             return {
               resource: item.url || false,
-              sourceUrl: basis.resource.resolveURI(sourceUrl),
+              sourceUrl: sourceUrl ? basis.resource.resolveURI(sourceUrl) : null,
               isolate: item.isolate === styleNamespaceIsolate ? styleNamespaceIsolate[item.url] : item.isolate || false,
               namespace: item.namespace || false,
               inline: item.inline,
@@ -1767,7 +758,7 @@ var __resources__ = {
         }
         for (var key in options.defines) {
           var define = options.defines[key];
-          if (!define.used) addTemplateWarn(result, options, "Unused define: " + key, define.loc);
+          if (!define.used) utils.addTemplateWarn(result, options, "Unused define: " + key, define.loc);
         }
         if (!warns.length) result.warns = false;
         return result;
@@ -1805,6 +796,7 @@ var __resources__ = {
     module.exports = {
       VERSION: 3,
       makeDeclaration: makeDeclaration,
+      walk: basis.require("./i.js").walk,
       getDeclFromSource: getDeclFromSource,
       setIsolatePrefixGenerator: function(fn) {
         genIsolateMarker = fn;
@@ -2155,7 +1147,10 @@ var __resources__ = {
                 }
               });
               result.warns.push([ "Wrong close tag: " + source.substr(startPos - 2, m[0].length + 2), lastTag.children[lastTag.children.length - 1] ]);
-            } else lastTag = tagStack.pop();
+            } else {
+              lastTag.range.end_ = startPos + m[0].length;
+              lastTag = tagStack.pop();
+            }
             state = TEXT;
             break;
           case TAG_NAME:
@@ -2280,7 +1275,7 @@ var __resources__ = {
       });
       postProcessing(result, options || {}, source);
       if (lastTag.name) result.warns.push([ "No close tag for <" + (lastTag.prefix ? lastTag.prefix + ":" : "") + lastTag.name + ">", lastTag ]);
-      if (!result.warns.length) delete result.warns;
+      if (!result.warns.length) result.warns = false;
       result.templateTokens = true;
       return result;
     }
@@ -2390,6 +1385,1224 @@ var __resources__ = {
     }
     module.exports = isolateCss;
   },
+  "g.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+    var arrayAdd = basis.array.add;
+    function resourceHash(resource) {
+      return [ resource.type, resource.url, resource.isolate ].join(";");
+    }
+    function addUnique(array, items) {
+      for (var i = 0; i < items.length; i++) arrayAdd(array, items[i]);
+    }
+    function getTokenName(token) {
+      return (token.prefix ? token.prefix + ":" : "") + token.name;
+    }
+    function bindingList(token) {
+      var refs = token.refs;
+      return refs && refs.length == 1 ? refs[0] : 0;
+    }
+    function getTokenAttrValues(token) {
+      var result = {};
+      if (token.attrs) for (var i = 0, attr; attr = token.attrs[i]; i++) result[getTokenName(attr)] = attr.value;
+      return result;
+    }
+    function getTokenAttrs(token) {
+      var result = {};
+      if (token.attrs) for (var i = 0, attr; attr = token.attrs[i]; i++) result[getTokenName(attr)] = attr;
+      return result;
+    }
+    function parseOptionsValue(str) {
+      var result = {};
+      var pairs = (str || "").trim().split(/\s*,\s*/);
+      for (var i = 0; i < pairs.length; i++) {
+        var pair = pairs[i].split(/\s*:\s*/);
+        if (pair.length != 2) {
+          return {};
+        }
+        result[pair[0]] = pair[1];
+      }
+      return result;
+    }
+    function getLocation(template, loc) {
+      if (loc) return (template.sourceUrl || "") + ":" + loc.start.line + ":" + (loc.start.column + 1);
+    }
+    function addTemplateWarn(template, options, message, loc) {
+      if (loc && options.loc) {
+        message = Object(message);
+        message.loc = typeof loc == "string" ? loc : getLocation(template, loc);
+      }
+      template.warns.push(message);
+    }
+    function addTokenLocation(template, options, dest, source) {
+      if (options.loc && source && source.loc && !dest.loc) dest.loc = getLocation(template, source.loc);
+    }
+    module.exports = {
+      resourceHash: resourceHash,
+      addUnique: addUnique,
+      getTokenName: getTokenName,
+      bindingList: bindingList,
+      getTokenAttrValues: getTokenAttrValues,
+      getTokenAttrs: getTokenAttrs,
+      parseOptionsValue: parseOptionsValue,
+      getLocation: getLocation,
+      addTemplateWarn: addTemplateWarn,
+      addTokenLocation: addTokenLocation
+    };
+  },
+  "h.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+    var arrayAdd = basis.array.add;
+    var walk = basis.require("./i.js").walk;
+    var consts = basis.require("./3.js");
+    var TYPE_ATTRIBUTE_EVENT = consts.TYPE_ATTRIBUTE_EVENT;
+    var TYPE_CONTENT = consts.TYPE_CONTENT;
+    var CONTENT_PRIORITY = consts.CONTENT_PRIORITY;
+    var TOKEN_BINDINGS = consts.TOKEN_BINDINGS;
+    var TOKEN_REFS = consts.TOKEN_REFS;
+    function refList(token) {
+      var array = token.refs;
+      if (array && array.length) return array;
+      return 0;
+    }
+    function addTokenRef(token, refName) {
+      if (!token[TOKEN_REFS]) token[TOKEN_REFS] = [];
+      arrayAdd(token[TOKEN_REFS], refName);
+      if (refName != "element") token[TOKEN_BINDINGS] = token[TOKEN_REFS].length == 1 ? refName : 0;
+    }
+    function removeTokenRef(token, refName) {
+      var idx = token[TOKEN_REFS].indexOf(refName);
+      if (idx != -1) {
+        var indexBinding = token[TOKEN_BINDINGS] && typeof token[TOKEN_BINDINGS] == "number";
+        token[TOKEN_REFS].splice(idx, 1);
+        if (indexBinding) if (idx == token[TOKEN_BINDINGS] - 1) {
+          token[TOKEN_BINDINGS] = refName;
+          indexBinding = false;
+        }
+        if (!token[TOKEN_REFS].length) token[TOKEN_REFS] = 0; else {
+          if (indexBinding) token[TOKEN_BINDINGS] -= idx < token[TOKEN_BINDINGS] - 1;
+        }
+      }
+    }
+    function normalizeRefs(nodes) {
+      var map = {};
+      walk(nodes, function(type, node, parent) {
+        if (type === TYPE_CONTENT) {
+          var contentNodeRef = map[":content"];
+          if (!contentNodeRef) {
+            map[":content"] = {
+              parent: parent,
+              node: node,
+              overrided: []
+            };
+          } else {
+            if (node[CONTENT_PRIORITY] >= contentNodeRef.node[CONTENT_PRIORITY]) {
+              contentNodeRef.overrided.push({
+                parent: contentNodeRef.parent,
+                node: contentNodeRef.node
+              });
+              contentNodeRef.parent = parent;
+              contentNodeRef.node = node;
+            } else {
+              contentNodeRef.overrided.push({
+                parent: parent,
+                node: node
+              });
+            }
+          }
+        } else if (type !== TYPE_ATTRIBUTE_EVENT) {
+          var refs = node[TOKEN_REFS];
+          if (!refs) return;
+          for (var j = refs.length - 1, refName; refName = refs[j]; j--) {
+            if (refName.indexOf(":") != -1) {
+              removeTokenRef(node, refName);
+              continue;
+            }
+            if (map[refName]) removeTokenRef(map[refName].node, refName);
+            if (node[TOKEN_BINDINGS] == refName) node[TOKEN_BINDINGS] = j + 1;
+            map[refName] = {
+              parent: parent,
+              node: node
+            };
+          }
+        }
+      });
+      return map;
+    }
+    module.exports = {
+      refList: refList,
+      addTokenRef: addTokenRef,
+      removeTokenRef: removeTokenRef,
+      normalizeRefs: normalizeRefs
+    };
+  },
+  "i.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+    var consts = basis.require("./3.js");
+    var TYPE_ELEMENT = consts.TYPE_ELEMENT;
+    var TYPE_CONTENT = consts.TYPE_CONTENT;
+    var TOKEN_TYPE = consts.TOKEN_TYPE;
+    var ELEMENT_ATTRIBUTES_AND_CHILDREN = consts.ELEMENT_ATTRIBUTES_AND_CHILDREN;
+    var CONTENT_CHILDREN = consts.CONTENT_CHILDREN;
+    function walker(nodes, fn) {
+      function walk(nodes, offset) {
+        for (var i = offset, node; node = nodes[i]; i++) {
+          var type = node[TOKEN_TYPE];
+          fn(type, node, nodes);
+          switch (type) {
+            case TYPE_ELEMENT:
+              walk(node, ELEMENT_ATTRIBUTES_AND_CHILDREN);
+              break;
+            case TYPE_CONTENT:
+              walk(node, CONTENT_CHILDREN);
+              break;
+          }
+        }
+      }
+      walk(nodes, 0);
+    }
+    module.exports = {
+      walk: walker
+    };
+  },
+  "j.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+    var hasOwnProperty = Object.prototype.hasOwnProperty;
+    var utils = basis.require("./g.js");
+    var walk = basis.require("./i.js").walk;
+    var consts = basis.require("./3.js");
+    var TYPE_ATTRIBUTE_CLASS = consts.TYPE_ATTRIBUTE_CLASS;
+    var TOKEN_BINDINGS = consts.TOKEN_BINDINGS;
+    var ATTR_VALUE_INDEX = consts.ATTR_VALUE_INDEX;
+    var styleNamespaceIsolate = {};
+    function adoptStyles(resources, prefix, includeToken) {
+      for (var i = 0, item; item = resources[i]; i++) if (item.type == "style") {
+        if (item.isolate !== styleNamespaceIsolate) item.isolate = prefix + item.isolate;
+        if (!item.includeToken) item.includeToken = includeToken;
+      }
+    }
+    function addStyle(template, token, src, isolatePrefix, namespace) {
+      var text = token.children[0];
+      var url = src ? basis.resource.resolveURI(src, template.baseURI, '<b:style src="{url}"/>') : basis.resource.virtual("css", text ? text.value : "", template.sourceUrl).url;
+      token.sourceUrl = template.sourceUrl;
+      template.resources.push({
+        type: "style",
+        url: url,
+        isolate: isolatePrefix,
+        token: token,
+        includeToken: null,
+        inline: src ? false : text || true,
+        namespace: namespace
+      });
+      return url;
+    }
+    function applyStyleNamespaces(tokens, isolate) {
+      function processName(name) {
+        if (name.indexOf(":") <= 0) return name;
+        var prefix = name.split(":")[0];
+        isolate.map[isolate.prefix + prefix] = prefix;
+        return isolate.prefix + name;
+      }
+      walk(tokens, function(type, node) {
+        if (type !== TYPE_ATTRIBUTE_CLASS) return;
+        var bindings = node[TOKEN_BINDINGS];
+        var valueIndex = ATTR_VALUE_INDEX[type];
+        if (node[valueIndex]) node[valueIndex] = node[valueIndex].replace(/\S+/g, processName);
+        if (node.valueLocMap) {
+          var oldValueLocMap = node.valueLocMap;
+          node.valueLocMap = {};
+          for (var name in oldValueLocMap) node.valueLocMap[processName(name)] = oldValueLocMap[name];
+        }
+        if (bindings) for (var k = 0, bind; bind = bindings[k]; k++) bind[0] = processName(bind[0]);
+      });
+    }
+    function isolateTokens(tokens, isolate, template) {
+      function processName(name) {
+        if (name.indexOf(":") == -1) return isolate + name;
+        if (!template) return name;
+        var parts = name.split(":");
+        if (!parts[0]) return parts[1];
+        var namespace = hasOwnProperty.call(template.styleNSPrefix, parts[0]) ? template.styleNSPrefix[parts[0]] : false;
+        if (!namespace) {
+          var isolatedPrefix = options.styleNSIsolateMap[parts[0]];
+          var oldPrefix = parts[0];
+          var fullName = arguments[1];
+          var loc = arguments[2];
+          if (fullName) {
+            if (isolatedPrefix) fullName = fullName.replace(oldPrefix, isolatedPrefix);
+            utils.addTemplateWarn(template, options, "Namespace `" + (isolatedPrefix || oldPrefix) + "` is not defined: " + fullName, loc);
+          }
+          return false;
+        } else {
+          namespace.used = true;
+          return namespace.prefix + parts[1];
+        }
+      }
+      var options = arguments[3];
+      walk(tokens, function(type, node) {
+        if (type !== TYPE_ATTRIBUTE_CLASS) return;
+        var bindings = node[TOKEN_BINDINGS];
+        var valueIndex = ATTR_VALUE_INDEX[type];
+        if (node[valueIndex]) node[valueIndex] = node[valueIndex].split(/\s+/).map(function(name) {
+          return processName(name, name, node.valueLocMap ? node.valueLocMap[name] : null);
+        }).filter(Boolean).join(" ");
+        if (bindings) {
+          for (var j = 0, bind, prefix, removed; bind = bindings[j]; j++) {
+            prefix = processName(bind[0], bind[0] + "{" + bind[1] + "}", bind.loc);
+            if (prefix === false) {
+              removed = true;
+              bindings[j] = null;
+            } else bind[0] = prefix;
+          }
+          if (removed) {
+            bindings = bindings.filter(Boolean);
+            node[TOKEN_BINDINGS] = bindings.length ? bindings : 0;
+          }
+        }
+        if (node.valueLocMap) {
+          var oldValueLocMap = node.valueLocMap;
+          node.valueLocMap = {};
+          for (var name in oldValueLocMap) {
+            var newKey = processName(name);
+            if (newKey) node.valueLocMap[newKey] = oldValueLocMap[name];
+          }
+        }
+      });
+    }
+    module.exports = {
+      styleNamespaceIsolate: styleNamespaceIsolate,
+      adoptStyles: adoptStyles,
+      addStyle: addStyle,
+      applyStyleNamespaces: applyStyleNamespaces,
+      isolateTokens: isolateTokens
+    };
+  },
+  "k.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+    var arrayAdd = basis.array.add;
+    var arrayRemove = basis.array.remove;
+    var consts = basis.require("./3.js");
+    var utils = basis.require("./g.js");
+    var addTokenRef = utils.addTokenRef;
+    var getTokenName = utils.getTokenName;
+    var getTokenAttrValues = utils.getTokenAttrValues;
+    var getTokenAttrs = utils.getTokenAttrs;
+    var TYPE_ELEMENT = consts.TYPE_ELEMENT;
+    var TYPE_ATTRIBUTE = consts.TYPE_ATTRIBUTE;
+    var TYPE_ATTRIBUTE_EVENT = consts.TYPE_ATTRIBUTE_EVENT;
+    var TYPE_ATTRIBUTE_STYLE = consts.TYPE_ATTRIBUTE_STYLE;
+    var ATTR_NAME = consts.ATTR_NAME;
+    var ATTR_NAME_BY_TYPE = consts.ATTR_NAME_BY_TYPE;
+    var ATTR_TYPE_BY_NAME = consts.ATTR_TYPE_BY_NAME;
+    var ATTR_VALUE_INDEX = consts.ATTR_VALUE_INDEX;
+    var ATTR_VALUE = consts.ATTR_VALUE;
+    var TOKEN_TYPE = consts.TOKEN_TYPE;
+    var TOKEN_BINDINGS = consts.TOKEN_BINDINGS;
+    var ELEMENT_ATTRIBUTES_AND_CHILDREN = consts.ELEMENT_ATTRIBUTES_AND_CHILDREN;
+    var ATTR_NAME_RX = /^[a-z_][a-z0-9_\-:]*$/i;
+    var ATTR_EVENT_RX = /^event-(.+)$/;
+    function getAttrByName(token, name) {
+      var offset = typeof token[0] == "number" ? ELEMENT_ATTRIBUTES_AND_CHILDREN : 0;
+      for (var i = offset, attr, attrName; attr = token[i]; i++) {
+        if (attr[TOKEN_TYPE] == TYPE_ATTRIBUTE_EVENT) attrName = "event-" + attr[1]; else attrName = ATTR_NAME_BY_TYPE[attr[TOKEN_TYPE]] || attr[ATTR_NAME];
+        if (attrName == name) return attr;
+      }
+    }
+    function getStyleBindingProperty(attr, name) {
+      var bindings = attr[TOKEN_BINDINGS];
+      if (bindings) for (var i = 0, binding; binding = bindings[i]; i++) if (binding[2] == name) return binding;
+    }
+    function getAttributeValueLocationMap(template, token) {
+      if (!token || !token.map_) return null;
+      return token.map_.reduce(function(res, part) {
+        if (!part.binding) res[part.value] = utils.getLocation(template, part.loc);
+        return res;
+      }, {});
+    }
+    function setStylePropertyBinding(template, options, host, attr, property, showByDefault, defaultValue) {
+      var styleAttr = getAttrByName(host, "style");
+      if (!styleAttr) {
+        styleAttr = [ TYPE_ATTRIBUTE_STYLE, 0, 0 ];
+        utils.addTokenLocation(template, options, styleAttr, attr);
+        host.push(styleAttr);
+      }
+      var binding = attr.binding;
+      var styleBindings = styleAttr[TOKEN_BINDINGS];
+      var addDefault = false;
+      var show = attr.name == showByDefault;
+      var value = styleAttr[3];
+      if (styleBindings) arrayRemove(styleBindings, getStyleBindingProperty(styleAttr, property));
+      if (!binding || binding[0].length != binding[1].length) {
+        addDefault = !(show ^ attr.value === "");
+      } else {
+        binding = binding.concat(property, attr.name);
+        addDefault = show;
+        if (styleBindings) styleBindings.push(binding); else styleAttr[TOKEN_BINDINGS] = [ binding ];
+      }
+      if (value) value = value.replace(new RegExp(property + "\\s*:\\s*[^;]+(;|$)"), "");
+      if (addDefault) value = (value ? value + " " : "") + defaultValue;
+      styleAttr[3] = value;
+    }
+    function applyShowHideAttribute(template, options, host, attr) {
+      if (attr.name == "show" || attr.name == "hide") setStylePropertyBinding(template, options, host, attr, "display", "show", "display: none;");
+      if (attr.name == "visible" || attr.name == "hidden") setStylePropertyBinding(template, options, host, attr, "visibility", "visible", "visibility: hidden;");
+    }
+    function addRoleAttribute(template, options, host, role) {
+      var sourceToken = arguments[4];
+      if (host[TOKEN_TYPE] !== TYPE_ELEMENT) {
+        utils.addTemplateWarn(template, options, "Role can't to be added to non-element node", sourceToken.loc);
+        return;
+      }
+      if (!/[\/\(\)]/.test(role)) {
+        var item = [ TYPE_ATTRIBUTE, [ [ "$role" ], [ 0, role ? "/" + role : "" ] ], 0, "role-marker" ];
+        item.sourceToken = sourceToken;
+        utils.addTokenLocation(template, options, item, sourceToken);
+        host.push(item);
+      } else utils.addTemplateWarn(template, options, 'Value for role was ignored as value can\'t contains ["/", "(", ")"]: ' + role, sourceToken.loc);
+    }
+    function applyAttrs(template, options, host, attrs) {
+      var displayAttr;
+      var visibilityAttr;
+      var item;
+      var m;
+      for (var i = 0, attr; attr = attrs[i]; i++) {
+        if (attr.prefix == "b") {
+          switch (attr.name) {
+            case "ref":
+              var refs = (attr.value || "").trim().split(/\s+/);
+              for (var j = 0; j < refs.length; j++) addTokenRef(host, refs[j]);
+              break;
+            case "show":
+            case "hide":
+              displayAttr = attr;
+              break;
+            case "visible":
+            case "hidden":
+              visibilityAttr = attr;
+              break;
+            case "role":
+              addRoleAttribute(template, options, host, attr.value || "", attr);
+              break;
+          }
+          continue;
+        }
+        if (m = attr.name.match(ATTR_EVENT_RX)) {
+          item = m[1] == attr.value ? [ TYPE_ATTRIBUTE_EVENT, m[1] ] : [ TYPE_ATTRIBUTE_EVENT, m[1], attr.value ];
+        } else {
+          item = [ attr.type, attr.binding, 0 ];
+          if (attr.type == TYPE_ATTRIBUTE) item.push(getTokenName(attr));
+          if (attr.value && (!options.optimizeSize || !attr.binding || attr.type != TYPE_ATTRIBUTE)) item.push(attr.value);
+        }
+        item.valueLocMap = getAttributeValueLocationMap(template, attr);
+        item.sourceToken = attr;
+        utils.addTokenLocation(template, options, item, attr);
+        host.push(item);
+      }
+      if (displayAttr) applyShowHideAttribute(template, options, host, displayAttr);
+      if (visibilityAttr) applyShowHideAttribute(template, options, host, visibilityAttr);
+      return host;
+    }
+    function modifyAttr(template, options, include, target, token, name, action) {
+      var attrs = getTokenAttrValues(token);
+      var attrs_ = getTokenAttrs(token);
+      if (name) attrs.name = name;
+      if (!attrs.name) {
+        utils.addTemplateWarn(template, options, "Instruction <b:" + token.name + "> has no `name` attribute", token.loc);
+        return;
+      }
+      if (!ATTR_NAME_RX.test(attrs.name)) {
+        utils.addTemplateWarn(template, options, "Bad attribute name `" + attrs.name + "`", token.loc);
+        return;
+      }
+      if (target) {
+        if (target[TOKEN_TYPE] == TYPE_ELEMENT) {
+          var itAttrs = target;
+          var isEvent = attrs.name.match(ATTR_EVENT_RX);
+          var isClassOrStyle = attrs.name == "class" || attrs.name == "style";
+          var itType = isEvent ? TYPE_ATTRIBUTE_EVENT : ATTR_TYPE_BY_NAME[attrs.name] || TYPE_ATTRIBUTE;
+          var valueIdx = ATTR_VALUE_INDEX[itType] || ATTR_VALUE;
+          var valueLocMap = getAttributeValueLocationMap(template, attrs_.value);
+          var itAttrToken = itAttrs && getAttrByName(itAttrs, attrs.name);
+          if (itAttrToken && action == "set") {
+            template.removals.push({
+              reason: "<b:" + token.name + ">",
+              removeToken: token,
+              includeToken: include,
+              token: itAttrToken,
+              node: itAttrToken
+            });
+            arrayRemove(itAttrs, itAttrToken);
+            itAttrToken = null;
+          }
+          if (!itAttrToken && (action == "set" || action == "append")) {
+            action = "set";
+            if (isEvent) {
+              itAttrToken = [ itType, isEvent[1] ];
+            } else {
+              itAttrToken = [ itType, 0, 0, itType == TYPE_ATTRIBUTE ? attrs.name : "" ];
+              if (itType == TYPE_ATTRIBUTE) itAttrToken.push("");
+            }
+            if (!itAttrs) {
+              itAttrs = [];
+              target.push(itAttrs);
+            }
+            itAttrs.push(itAttrToken);
+            itAttrToken.valueLocMap = valueLocMap;
+            utils.addTokenLocation(template, options, itAttrToken, token);
+          }
+          switch (action) {
+            case "set":
+              if (itAttrToken[TOKEN_TYPE] == TYPE_ATTRIBUTE_EVENT) {
+                if (attrs.value == isEvent[1]) itAttrToken.length = 2; else itAttrToken[valueIdx] = attrs.value;
+                return;
+              }
+              var valueAttr = attrs_.value || {};
+              itAttrToken[TOKEN_BINDINGS] = valueAttr.binding || 0;
+              itAttrToken.valueLocMap = valueLocMap;
+              if (!options.optimizeSize || !itAttrToken[TOKEN_BINDINGS] || isClassOrStyle) itAttrToken[valueIdx] = valueAttr.value || ""; else itAttrToken.length = valueIdx;
+              if (isClassOrStyle) if (!itAttrToken[TOKEN_BINDINGS] && !itAttrToken[valueIdx]) {
+                arrayRemove(itAttrs, itAttrToken);
+                return;
+              }
+              break;
+            case "append":
+              var valueAttr = attrs_.value || {};
+              var appendValue = valueAttr.value || "";
+              var appendBinding = valueAttr.binding;
+              if (!isEvent) {
+                if (appendBinding) {
+                  var attrBindings = itAttrToken[TOKEN_BINDINGS];
+                  if (attrBindings) {
+                    switch (attrs.name) {
+                      case "style":
+                        for (var i = 0, newBinding; newBinding = appendBinding[i]; i++) {
+                          arrayRemove(attrBindings, getStyleBindingProperty(itAttrToken, newBinding[2]));
+                          attrBindings.push(newBinding);
+                        }
+                        break;
+                      case "class":
+                        attrBindings.push.apply(attrBindings, appendBinding);
+                        break;
+                      default:
+                        appendBinding[0].forEach(function(name) {
+                          arrayAdd(this, name);
+                        }, attrBindings[0]);
+                        for (var i = 0; i < appendBinding[1].length; i++) {
+                          var value = appendBinding[1][i];
+                          if (typeof value == "number") value = attrBindings[0].indexOf(appendBinding[0][value]);
+                          attrBindings[1].push(value);
+                        }
+                    }
+                  } else {
+                    itAttrToken[TOKEN_BINDINGS] = appendBinding;
+                    if (!isClassOrStyle) itAttrToken[TOKEN_BINDINGS][1].unshift(itAttrToken[valueIdx]);
+                  }
+                } else {
+                  if (!isClassOrStyle && itAttrToken[TOKEN_BINDINGS]) itAttrToken[TOKEN_BINDINGS][1].push(attrs.value);
+                }
+              }
+              if (appendValue) {
+                if (isEvent || attrs.name == "class") {
+                  var parts = (itAttrToken[valueIdx] || "").trim();
+                  var appendParts = appendValue.trim();
+                  parts = parts ? parts.split(/\s+/) : [];
+                  appendParts = appendParts ? appendParts.split(/\s+/) : [];
+                  for (var i = 0; i < appendParts.length; i++) {
+                    var part = appendParts[i];
+                    basis.array.remove(parts, part);
+                    parts.push(part);
+                  }
+                  itAttrToken[valueIdx] = parts.join(" ");
+                } else {
+                  itAttrToken[valueIdx] = (itAttrToken[valueIdx] || "") + (itAttrToken[valueIdx] && isClassOrStyle ? " " : "") + appendValue;
+                }
+                if (valueLocMap) {
+                  if (itAttrToken.valueLocMap) for (var name in valueLocMap) itAttrToken.valueLocMap[name] = valueLocMap[name]; else itAttrToken.valueLocMap = valueLocMap;
+                }
+              }
+              if (isClassOrStyle && !itAttrToken[TOKEN_BINDINGS] && !itAttrToken[valueIdx]) arrayRemove(itAttrs, itAttrToken);
+              break;
+            case "remove-class":
+              if (itAttrToken) {
+                var valueAttr = attrs_.value || {};
+                var values = (itAttrToken[valueIdx] || "").split(" ");
+                var removeValues = (valueAttr.value || "").split(" ");
+                var bindings = itAttrToken[TOKEN_BINDINGS];
+                var removedValues = [];
+                var removedBindings = 0;
+                if (valueAttr.binding && bindings) {
+                  for (var i = 0, removeBinding; removeBinding = valueAttr.binding[i]; i++) for (var j = bindings.length - 1, classBinding; classBinding = bindings[j]; j--) {
+                    var prefix = classBinding[0];
+                    var bindingName = classBinding[3] || classBinding[1];
+                    if (prefix === removeBinding[0] && bindingName === removeBinding[1]) {
+                      bindings.splice(j, 1);
+                      if (!removedBindings) removedBindings = [ classBinding ]; else removedBindings.push(classBinding);
+                    }
+                  }
+                  if (!bindings.length) itAttrToken[TOKEN_BINDINGS] = 0;
+                }
+                for (var i = 0; i < removeValues.length; i++) {
+                  if (values.indexOf(removeValues[i]) != -1) removedValues.push(removeValues[i]);
+                  arrayRemove(values, removeValues[i]);
+                  if (itAttrToken.valueLocMap) delete itAttrToken.valueLocMap[removeValues[i]];
+                }
+                itAttrToken[valueIdx] = values.join(" ");
+                if (!bindings.length && !values.length) arrayRemove(itAttrs, itAttrToken);
+                if (removedValues.length || removedBindings.length) {
+                  var removedNode = [ consts.TYPE_ATTRIBUTE_CLASS, removedBindings, 0, removedValues.join(" ") ];
+                  template.removals.push({
+                    reason: "<b:" + token.name + ">",
+                    removeToken: token,
+                    includeToken: include,
+                    token: removedNode,
+                    node: removedNode
+                  });
+                }
+              }
+              break;
+            case "remove":
+              if (itAttrToken) {
+                arrayRemove(itAttrs, itAttrToken);
+                template.removals.push({
+                  reason: "<b:" + token.name + ">",
+                  removeToken: token,
+                  includeToken: include,
+                  token: itAttrToken,
+                  node: itAttrToken
+                });
+              }
+              break;
+          }
+        } else {
+          utils.addTemplateWarn(template, options, "Attribute modificator is not reference to element token (reference name: " + (attrs.ref || "element") + ")", token.loc);
+        }
+      }
+    }
+    module.exports = {
+      getAttrByName: getAttrByName,
+      applyShowHideAttribute: applyShowHideAttribute,
+      addRoleAttribute: addRoleAttribute,
+      applyAttrs: applyAttrs,
+      modifyAttr: modifyAttr
+    };
+  },
+  "l.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+    var consts = basis.require("./3.js");
+    var TYPE_CONTENT = consts.TYPE_CONTENT;
+    var utils = basis.require("./g.js");
+    module.exports = function(template, options, token, result) {
+      var node = [ TYPE_CONTENT, 2 ];
+      if (token.children) node.push.apply(node, options.process(token.children, template, options));
+      utils.addTokenLocation(template, options, node, token);
+      node.sourceToken = token;
+      result.push(node);
+    };
+  },
+  "m.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+    var hasOwnProperty = Object.prototype.hasOwnProperty;
+    var consts = basis.require("./3.js");
+    var utils = basis.require("./g.js");
+    var getTokenAttrValues = utils.getTokenAttrValues;
+    var CLASS_BINDING_BOOL = consts.CLASS_BINDING_BOOL;
+    var CLASS_BINDING_INVERT = consts.CLASS_BINDING_INVERT;
+    var CLASS_BINDING_ENUM = consts.CLASS_BINDING_ENUM;
+    function addStateInfo(template, name, type, value) {
+      if (!hasOwnProperty.call(template.states, name)) template.states[name] = {};
+      var info = template.states[name];
+      var isArray = Array.isArray(value);
+      if (!hasOwnProperty.call(info, type) || !isArray) info[type] = isArray ? basis.array(value) : value; else value.forEach(function(item) {
+        basis.array.add(info[type], item);
+      });
+    }
+    module.exports = function(template, options, token) {
+      var elAttrs = getTokenAttrValues(token);
+      var elAttrs_ = utils.getTokenAttrs(token);
+      if ("name" in elAttrs == false) utils.addTemplateWarn(template, options, "<b:define> has no `name` attribute", token.loc);
+      if ("type" in elAttrs == false) utils.addTemplateWarn(template, options, "<b:define> has no `type` attribute", token.loc);
+      if (hasOwnProperty.call(options.defines, elAttrs.name)) utils.addTemplateWarn(template, options, "<b:define> with name `" + elAttrs.name + "` is already defined", token.loc);
+      if ("name" in elAttrs && "type" in elAttrs && !hasOwnProperty.call(options.defines, elAttrs.name)) {
+        var bindingName = elAttrs.from || elAttrs.name;
+        var defineName = elAttrs.name;
+        var define = false;
+        var defaultIndex;
+        var values;
+        switch (elAttrs.type) {
+          case "bool":
+            define = [ bindingName, CLASS_BINDING_BOOL, defineName, elAttrs["default"] == "true" ? 1 : 0 ];
+            addStateInfo(template, bindingName, "bool", true);
+            if ("default" in elAttrs && !elAttrs["default"]) utils.addTemplateWarn(template, options, "Bool <b:define> has no value as default (value ignored)", elAttrs_["default"] && elAttrs_["default"].loc);
+            break;
+          case "invert":
+            define = [ bindingName, CLASS_BINDING_INVERT, defineName, !elAttrs["default"] || elAttrs["default"] == "true" ? 1 : 0 ];
+            addStateInfo(template, bindingName, "invert", false);
+            if ("default" in elAttrs && !elAttrs["default"]) utils.addTemplateWarn(template, options, "Invert <b:define> has no value as default (value ignored)", elAttrs_["default"] && elAttrs_["default"].loc);
+            break;
+          case "enum":
+            if ("values" in elAttrs == false) {
+              utils.addTemplateWarn(template, options, "Enum <b:define> has no `values` attribute", token.loc);
+              break;
+            }
+            values = (elAttrs.values || "").trim();
+            if (!values) {
+              utils.addTemplateWarn(template, options, "Enum <b:define> has no variants (`values` attribute is empty)", elAttrs_.values && elAttrs_.values.loc);
+              break;
+            }
+            values = values.split(/\s+/);
+            defaultIndex = values.indexOf(elAttrs["default"]);
+            if ("default" in elAttrs && defaultIndex == -1) utils.addTemplateWarn(template, options, "Enum <b:define> has bad value as default (value ignored)", elAttrs_["default"] && elAttrs_["default"].loc);
+            define = [ bindingName, CLASS_BINDING_ENUM, defineName, defaultIndex + 1, values ];
+            addStateInfo(template, bindingName, "enum", values);
+            break;
+          default:
+            utils.addTemplateWarn(template, options, "Bad type in <b:define> for `" + defineName + "`: " + elAttrs.type, elAttrs_.type && elAttrs_.type.valueLoc);
+        }
+        if (define) {
+          utils.addTokenLocation(template, options, define, token);
+          options.defines[defineName] = define;
+        }
+      }
+    };
+  },
+  "n.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+    var arrayRemove = basis.array.remove;
+    var arrayAdd = basis.array.add;
+    var walk = basis.require("./i.js").walk;
+    var utils = basis.require("./g.js");
+    var addUnique = utils.addUnique;
+    var getTokenAttrValues = utils.getTokenAttrValues;
+    var getTokenAttrs = utils.getTokenAttrs;
+    var parseOptionsValue = utils.parseOptionsValue;
+    var refsUtils = basis.require("./h.js");
+    var normalizeRefs = refsUtils.normalizeRefs;
+    var addTokenRef = refsUtils.addTokenRef;
+    var removeTokenRef = refsUtils.removeTokenRef;
+    var styleUtils = basis.require("./j.js");
+    var styleNamespaceIsolate = styleUtils.styleNamespaceIsolate;
+    var adoptStyles = styleUtils.adoptStyles;
+    var addStyle = styleUtils.addStyle;
+    var isolateTokens = styleUtils.isolateTokens;
+    var applyStyleNamespaces = styleUtils.applyStyleNamespaces;
+    var attrUtils = basis.require("./k.js");
+    var getAttrByName = attrUtils.getAttrByName;
+    var addRoleAttribute = attrUtils.addRoleAttribute;
+    var applyShowHideAttribute = attrUtils.applyShowHideAttribute;
+    var modifyAttr = attrUtils.modifyAttr;
+    var consts = basis.require("./3.js");
+    var TOKEN_TYPE = consts.TOKEN_TYPE;
+    var TOKEN_BINDINGS = consts.TOKEN_BINDINGS;
+    var ATTR_NAME = consts.ATTR_NAME;
+    var TYPE_ATTRIBUTE = consts.TYPE_ATTRIBUTE;
+    var TYPE_ELEMENT = consts.TYPE_ELEMENT;
+    var ELEMENT_ATTRIBUTES_AND_CHILDREN = consts.ELEMENT_ATTRIBUTES_AND_CHILDREN;
+    var CONTENT_CHILDREN = consts.CONTENT_CHILDREN;
+    var specialTagsAsRegular = [ "include", "content" ];
+    var attributesWhitelist = [ "src", "no-style", "isolate", "options" ];
+    var attributeToInstructionMap = {
+      "class": {
+        instruction: "append-class",
+        valueTo: "value"
+      },
+      id: {
+        instruction: "set-attr",
+        valueTo: "value",
+        attrs: {
+          name: "id"
+        }
+      },
+      ref: {
+        instruction: "add-ref",
+        valueTo: "name"
+      },
+      show: {
+        instruction: "show",
+        valueTo: "expr"
+      },
+      hide: {
+        instruction: "hide",
+        valueTo: "expr"
+      },
+      visible: {
+        instruction: "visible",
+        valueTo: "expr"
+      },
+      hidden: {
+        instruction: "hidden",
+        valueTo: "expr"
+      }
+    };
+    function adoptNodes(ast, includeToken) {
+      walk(ast, function(type, node) {
+        if (!node.includeToken) node.includeToken = includeToken;
+      });
+    }
+    function applyRole(ast, role) {
+      walk(ast, function(type, node) {
+        if (type !== TYPE_ATTRIBUTE || node[ATTR_NAME] != "role-marker") return;
+        var roleExpression = node[TOKEN_BINDINGS][1];
+        var currentRole = roleExpression[1];
+        roleExpression[1] = "/" + role + currentRole;
+        node.sourceToken = arguments[2];
+        node.loc = arguments[3];
+      });
+    }
+    function clone(value) {
+      if (Array.isArray(value)) return value.map(clone);
+      if (value && value.constructor === Object) {
+        var result = {};
+        for (var key in value) result[key] = clone(value[key]);
+        return result;
+      }
+      return value;
+    }
+    function convertAttributeToInstruction(config, attribute) {
+      return {
+        type: TYPE_ELEMENT,
+        prefix: "b",
+        name: config.instruction,
+        attrs: basis.object.iterate(config.attrs || {}, function(attrName, value) {
+          return {
+            type: TYPE_ATTRIBUTE,
+            name: attrName,
+            value: value
+          };
+        }).concat(basis.object.complete({
+          name: config.valueTo
+        }, attribute))
+      };
+    }
+    module.exports = function(template, options, token, result) {
+      var elAttrs = getTokenAttrValues(token);
+      var elAttrs_ = getTokenAttrs(token);
+      var includeStack = options.includeStack;
+      var templateSrc = elAttrs.src;
+      if ("src" in elAttrs == false) utils.addTemplateWarn(template, options, "<b:include> has no `src` attribute", token.loc);
+      if (!templateSrc) return;
+      var resource;
+      var basisWarn = basis.dev.warn;
+      basis.dev.warn = function() {
+        utils.addTemplateWarn(template, options, basis.array(arguments).join(" "), token.loc);
+        if (!basis.NODE_ENV) basisWarn.apply(this, arguments);
+      };
+      if (/^#[^\d]/.test(templateSrc)) {
+        resource = template.templates[templateSrc.substr(1)];
+        if (resource) resource = options.makeDeclaration(clone(resource.tokens), resource.baseURI, resource.options, resource.sourceUrl);
+      } else {
+        resource = options.resolveResource(templateSrc, template.baseURI);
+      }
+      basis.dev.warn = basisWarn;
+      if (!resource) {
+        utils.addTemplateWarn(template, options, '<b:include src="' + templateSrc + '"> is not resolved, instruction ignored', token.loc);
+        return;
+      }
+      if (includeStack.indexOf(resource) !== -1) {
+        var stack = includeStack.slice(includeStack.indexOf(resource) || 0).concat(resource).map(function(res) {
+          if (res instanceof options.Template) res = res.source;
+          return res.id || res.url || "[inline template]";
+        });
+        template.warns.push("Recursion: ", stack.join(" -> "));
+        return;
+      }
+      var isolatePrefix = elAttrs_.isolate ? elAttrs_.isolate.value || options.genIsolateMarker() : "";
+      var includeOptions = elAttrs.options ? parseOptionsValue(elAttrs.options) : null;
+      var decl = options.getDeclFromSource(resource, "", true, basis.object.merge(options, {
+        includeOptions: includeOptions
+      }));
+      adoptNodes(decl.tokens, token);
+      template.includes.push({
+        token: token,
+        resource: resource,
+        nested: decl.includes
+      });
+      if (resource.bindingBridge) arrayAdd(template.deps, resource);
+      if (decl.deps) addUnique(template.deps, decl.deps);
+      if (decl.warns) {
+        decl.warns.forEach(function(warn) {
+          warn.source = warn.source || token;
+        });
+        template.warns.push.apply(template.warns, decl.warns);
+      }
+      if (decl.removals) {
+        template.removals.push.apply(template.removals, decl.removals);
+        template.removals.forEach(function(item) {
+          if (!item.includeToken) item.includeToken = token;
+        });
+      }
+      if (decl.resources) {
+        var resources = decl.resources;
+        if ("no-style" in elAttrs) resources = resources.filter(function(item) {
+          return item.type != "style";
+        }); else adoptStyles(resources, isolatePrefix, token);
+        template.resources.unshift.apply(template.resources, resources);
+      }
+      var styleNSIsolate = {
+        map: options.styleNSIsolateMap,
+        prefix: options.genIsolateMarker()
+      };
+      applyStyleNamespaces(decl.tokens, styleNSIsolate);
+      for (var key in decl.styleNSPrefix) template.styleNSPrefix[styleNSIsolate.prefix + key] = basis.object.merge(decl.styleNSPrefix[key], {
+        used: Object.prototype.hasOwnProperty.call(options.styleNSIsolateMap, styleNSIsolate.prefix + key)
+      });
+      if (isolatePrefix) {
+        isolateTokens(decl.tokens, isolatePrefix);
+        if (decl.removals) decl.removals.forEach(function(item) {
+          isolateTokens([ item.node ], isolatePrefix);
+        });
+      }
+      var isContentReset = false;
+      var instructions = [];
+      var tokenRefMap = normalizeRefs(decl.tokens);
+      for (var includeAttrName in elAttrs_) {
+        if (attributeToInstructionMap.hasOwnProperty(includeAttrName)) {
+          instructions.push(convertAttributeToInstruction(attributeToInstructionMap[includeAttrName], elAttrs_[includeAttrName]));
+        } else if (includeAttrName === "role") {
+          var role = elAttrs_.role.value;
+          if (role) {
+            if (!/[\/\(\)]/.test(role)) {
+              var loc;
+              loc = utils.getLocation(template, elAttrs_.role.loc);
+              applyRole(decl.tokens, role, elAttrs_.role, loc);
+            } else utils.addTemplateWarn(template, options, 'Value for role was ignored as value can\'t contains ["/", "(", ")"]: ' + role, elAttrs_.role.loc);
+          }
+        } else if (attributesWhitelist.indexOf(includeAttrName) === -1) utils.addTemplateWarn(template, options, "Unknown attribute for <b:include>: " + includeAttrName, elAttrs_[includeAttrName].loc);
+      }
+      instructions = instructions.concat(token.children);
+      for (var j = 0, child; child = instructions[j]; j++) {
+        if (child.type == TYPE_ELEMENT && child.prefix == "b" && specialTagsAsRegular.indexOf(child.name) === -1) {
+          var childAttrs = getTokenAttrValues(child);
+          var ref = "ref" in childAttrs ? childAttrs.ref : "element";
+          var isSpecialRef = ref.charAt(0) === ":";
+          var targetRef = ref && tokenRefMap[ref];
+          var target = targetRef && targetRef.node;
+          switch (child.name) {
+            case "style":
+              var childAttrs = getTokenAttrValues(child);
+              var useStyle = true;
+              if (childAttrs.options) {
+                var filterOptions = parseOptionsValue(childAttrs.options);
+                for (var name in filterOptions) useStyle = useStyle && filterOptions[name] == includeOptions[name];
+              }
+              if (useStyle) {
+                var namespaceAttrName = childAttrs.namespace ? "namespace" : "ns";
+                var styleNamespace = childAttrs[namespaceAttrName];
+                var styleIsolate = styleNamespace ? styleNamespaceIsolate : isolatePrefix;
+                var src = addStyle(template, child, childAttrs.src, styleIsolate, styleNamespace);
+                if (styleNamespace) {
+                  if (src in styleNamespaceIsolate == false) styleNamespaceIsolate[src] = options.genIsolateMarker();
+                  template.styleNSPrefix[styleNSIsolate.prefix + styleNamespace] = {
+                    loc: utils.getLocation(template, getTokenAttrs(child)[namespaceAttrName].loc),
+                    used: false,
+                    name: styleNamespace,
+                    prefix: styleNamespaceIsolate[src]
+                  };
+                }
+              } else {
+                child.sourceUrl = template.sourceUrl;
+                template.resources.push([ null, styleIsolate, child, token, childAttrs.src ? false : child.children[0] || true, styleNamespace ]);
+              }
+              break;
+            case "replace":
+            case "remove":
+            case "before":
+            case "after":
+              var replaceOrRemove = child.name == "replace" || child.name == "remove";
+              var childAttrs = getTokenAttrValues(child);
+              var ref = "ref" in childAttrs || !replaceOrRemove ? childAttrs.ref : "element";
+              var targetRef = ref && tokenRefMap[ref];
+              if (targetRef) {
+                var parent = targetRef.parent;
+                var pos = parent.indexOf(targetRef.node);
+                if (pos != -1) {
+                  var args = [ pos + (child.name == "after"), replaceOrRemove ];
+                  if (child.name != "remove") args = args.concat(options.process(child.children, template, options));
+                  parent.splice.apply(parent, args);
+                  if (replaceOrRemove) template.removals.push({
+                    reason: "<b:" + child.name + ">",
+                    removeToken: child,
+                    includeToken: token,
+                    token: targetRef.node,
+                    node: targetRef.node
+                  });
+                }
+              }
+              break;
+            case "prepend":
+            case "append":
+              if (target && target[TOKEN_TYPE] == TYPE_ELEMENT) {
+                var children = options.process(child.children, template, options);
+                if (child.name == "prepend") target.splice.apply(target, [ ELEMENT_ATTRIBUTES_AND_CHILDREN, 0 ].concat(children)); else target.push.apply(target, children);
+              }
+              break;
+            case "show":
+            case "hide":
+            case "visible":
+            case "hidden":
+              if (target && target[TOKEN_TYPE] == TYPE_ELEMENT) {
+                var expr = getTokenAttrs(child).expr;
+                if (!expr) {
+                  utils.addTemplateWarn(template, options, "Instruction <b:" + child.name + "> has no `expr` attribute", child.loc);
+                  break;
+                }
+                applyShowHideAttribute(template, options, target, basis.object.complete({
+                  name: child.name
+                }, getTokenAttrs(child).expr));
+              }
+              break;
+            case "attr":
+            case "set-attr":
+              modifyAttr(template, options, token, target, child, false, "set");
+              break;
+            case "append-attr":
+              modifyAttr(template, options, token, target, child, false, "append");
+              break;
+            case "remove-attr":
+              modifyAttr(template, options, token, target, child, false, "remove");
+              break;
+            case "class":
+            case "append-class":
+              modifyAttr(template, options, token, target, child, "class", "append");
+              break;
+            case "set-class":
+              modifyAttr(template, options, token, target, child, "class", "set");
+              break;
+            case "remove-class":
+              var valueAttr = getTokenAttrs(child).value;
+              if (valueAttr) {
+                valueAttr.value = valueAttr.value.split(/\s+/).map(function(name) {
+                  return name.indexOf(":") > 0 ? styleNSIsolate.prefix + name : name;
+                }).join(" ");
+                if (valueAttr.binding) valueAttr.binding.forEach(function(bind) {
+                  if (bind[0].indexOf(":") > 0) bind[0] = styleNSIsolate.prefix + bind[0];
+                });
+                if (valueAttr.map_) valueAttr.map_.forEach(function(item) {
+                  if (item.value.indexOf(":") > 0) item.value = styleNSIsolate.prefix + item.value;
+                });
+              }
+              modifyAttr(template, options, token, target, child, "class", "remove-class");
+              break;
+            case "add-ref":
+              var refName = (childAttrs.name || "").trim();
+              if (!target) {
+                utils.addTemplateWarn(template, options, "Target node for <b:" + child.name + "> is not found", child.loc);
+                break;
+              }
+              if (isSpecialRef) {
+                utils.addTemplateWarn(template, options, "<b:" + child.name + "> can't to be applied to special reference `" + ref + "`", child.loc);
+                break;
+              }
+              if (!/^[a-z_][a-z0-9_]*$/i.test(refName)) {
+                utils.addTemplateWarn(template, options, "Bad reference name for <b:" + child.name + ">: " + refName, child.loc);
+                break;
+              }
+              addTokenRef(target, refName);
+              break;
+            case "remove-ref":
+              var refName = (childAttrs.name || "").trim();
+              var ref = "ref" in childAttrs ? childAttrs.ref : refName || "element";
+              var isSpecialRef = ref.charAt(0) === ":";
+              var targetRef = ref && tokenRefMap[ref];
+              var target = targetRef && targetRef.node;
+              if (!target) {
+                utils.addTemplateWarn(template, options, "Target node for <b:" + child.name + "> is not found", child.loc);
+                break;
+              }
+              if (isSpecialRef) {
+                utils.addTemplateWarn(template, options, "<b:" + child.name + "> can't to be applied to special reference `" + ref + "`", child.loc);
+                break;
+              }
+              if (!/^[a-z_][a-z0-9_]*$/i.test(refName)) {
+                utils.addTemplateWarn(template, options, "Bad reference name for <b:" + child.name + ">: " + refName, child.loc);
+                break;
+              }
+              removeTokenRef(target, refName || ref);
+              break;
+            case "role":
+            case "set-role":
+              var name = childAttrs.name;
+              if (!name && "value" in childAttrs) {
+                utils.addTemplateWarn(template, options, "`value` attribute for <b:" + child.name + "> is deprecated, use `name` instead", getTokenAttrs(child).value.loc);
+                name = childAttrs.value;
+              }
+              if (!target) {
+                utils.addTemplateWarn(template, options, "Target node for <b:" + child.name + "> is not found", child.loc);
+                break;
+              }
+              arrayRemove(target, getAttrByName(target, "role-marker"));
+              addRoleAttribute(template, options, target, name || "", child);
+              break;
+            case "remove-role":
+              if (!target) {
+                utils.addTemplateWarn(template, options, "Target node for <b:" + child.name + "> is not found", child.loc);
+                break;
+              }
+              arrayRemove(target, getAttrByName(target, "role-marker"));
+              break;
+            default:
+              utils.addTemplateWarn(template, options, "Unknown instruction tag: <b:" + child.name + ">", child.loc);
+          }
+        } else {
+          var targetRef = tokenRefMap[":content"];
+          var processedChild = options.process([ child ], template, options);
+          if (targetRef) {
+            var parent = targetRef.parent;
+            var pos = parent.indexOf(targetRef.node);
+            if (!isContentReset) {
+              isContentReset = true;
+              for (var i = CONTENT_CHILDREN; i < targetRef.node.length; i++) template.removals.push({
+                reason: "node from including template",
+                removeToken: child,
+                includeToken: token,
+                token: targetRef.node[i],
+                node: targetRef.node[i]
+              });
+              targetRef.node.splice(CONTENT_CHILDREN);
+            }
+            targetRef.node.push.apply(targetRef.node, processedChild);
+          } else {
+            decl.tokens.push.apply(decl.tokens, processedChild);
+          }
+        }
+      }
+      if (tokenRefMap.element) removeTokenRef(tokenRefMap.element.node, "element");
+      result.push.apply(result, decl.tokens);
+    };
+  },
+  "1.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+    var resolveTemplateById = basis.require("./2.js").resolveTemplateById;
+    var HtmlTemplate = basis.require("./7.js").Template;
+    var srcMap = [];
+    var tmplMap = [];
+    function templateWrapper(src) {
+      var index = srcMap.indexOf(src);
+      if (index != -1) return tmplMap[index];
+      var template = new HtmlTemplate(src);
+      srcMap.push(src);
+      tmplMap.push(template);
+      return template;
+    }
+    global.bt = module.exports = basis.object.extend(templateWrapper, {
+      init: function(config) {
+        if (!config) return this;
+        if (config.noConflict) {
+          delete global.bt;
+          return this;
+        }
+      },
+      dispose: function(tmpl) {
+        var template = resolveTemplateById(tmpl.templateId_);
+        if (!template) {
+          basis.dev.warn("Template is not resolved for ", tmpl);
+          return;
+        }
+        template.clearInstance(tmpl);
+      },
+      template: templateWrapper
+    });
+  },
+  "p.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+    var getTokenAttrValues = basis.require("./g.js").getTokenAttrValues;
+    module.exports = function(template, options, token) {
+      var elAttrs = getTokenAttrValues(token);
+      if (elAttrs.src) options.dictURI = basis.resource.resolveURI(elAttrs.src, template.baseURI, "<b:" + token.name + ' src="{url}"/>');
+    };
+  },
+  "q.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+    var utils = basis.require("./g.js");
+    var styleUtils = basis.require("./j.js");
+    var styleNamespaceIsolate = styleUtils.styleNamespaceIsolate;
+    var addStyle = styleUtils.addStyle;
+    var parseOptionsValue = utils.parseOptionsValue;
+    var getTokenAttrValues = utils.getTokenAttrValues;
+    module.exports = function(template, options, token) {
+      var useStyle = true;
+      var elAttrs = getTokenAttrValues(token);
+      if (elAttrs.options) {
+        var filterOptions = parseOptionsValue(elAttrs.options);
+        for (var name in filterOptions) useStyle = useStyle && filterOptions[name] == options.includeOptions[name];
+      }
+      if (useStyle) {
+        var namespaceAttrName = elAttrs.namespace ? "namespace" : "ns";
+        var styleNamespace = elAttrs[namespaceAttrName];
+        var styleIsolate = styleNamespace ? styleNamespaceIsolate : "";
+        var src = addStyle(template, token, elAttrs.src, styleIsolate, styleNamespace);
+        if (styleNamespace) {
+          if (src in styleNamespaceIsolate == false) styleNamespaceIsolate[src] = options.genIsolateMarker();
+          if (styleNamespace in template.styleNSPrefix) {
+            utils.addTemplateWarn(template, options, "Duplicate value for `" + styleNamespace + "` attribute, style ignored", utils.getTokenAttrs(token)[namespaceAttrName].loc);
+            return;
+          }
+          template.styleNSPrefix[styleNamespace] = {
+            loc: utils.getLocation(template, utils.getTokenAttrs(token)[namespaceAttrName].loc),
+            used: false,
+            name: styleNamespace,
+            prefix: styleNamespaceIsolate[src]
+          };
+        }
+      } else {
+        token.sourceUrl = template.sourceUrl;
+        template.resources.push({
+          type: "style",
+          url: null,
+          isolate: styleIsolate,
+          token: token,
+          includeToken: null,
+          inline: elAttrs.src ? false : token.children[0] || true,
+          namespace: styleNamespace
+        });
+      }
+    };
+  },
+  "r.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+    var arrayAdd = basis.array.add;
+    var utils = basis.require("./g.js");
+    var getTokenName = utils.getTokenName;
+    var getTokenAttrs = utils.getTokenAttrs;
+    var bindingList = utils.bindingList;
+    var refList = basis.require("./h.js").refList;
+    var applyAttrs = basis.require("./k.js").applyAttrs;
+    var TYPE_ELEMENT = basis.require("./3.js").TYPE_ELEMENT;
+    module.exports = function(template, options, token, result) {
+      var attrs = getTokenAttrs(token);
+      var svgAttributes = [];
+      var svgUse = [ TYPE_ELEMENT, 0, 0, "svg:use" ];
+      var svgElement = [ TYPE_ELEMENT, bindingList(token), refList(token), "svg:svg", svgUse ];
+      for (var key in attrs) {
+        var attrToken = attrs[key];
+        switch (getTokenName(attrToken)) {
+          case "src":
+            if (!attrToken.value) {
+              utils.addTemplateWarn(template, options, "Value for `src` attribute should be specified", attrToken.loc);
+              continue;
+            }
+            var svgUrl = basis.resource.resolveURI(attrToken.value, template.baseURI, "<b:" + token.name + ' src="{url}"/>');
+            arrayAdd(template.deps, basis.resource.buildCloak(svgUrl));
+            template.resources.push({
+              type: "svg",
+              url: svgUrl
+            });
+            break;
+          case "use":
+            applyAttrs(template, options, svgUse, [ basis.object.merge(attrToken, {
+              prefix: "xlink",
+              name: "href"
+            }) ]);
+            break;
+          default:
+            svgAttributes.push(attrToken);
+        }
+      }
+      result.push(applyAttrs(template, options, svgElement, svgAttributes));
+    };
+  },
+  "s.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+    var getTokenAttrValues = basis.require("./g.js").getTokenAttrValues;
+    module.exports = function(template, options, token, result) {
+      var elAttrs = getTokenAttrValues(token);
+      var refs = (elAttrs.ref || "").trim();
+      var text = token.children[0] || {
+        type: 3,
+        value: ""
+      };
+      text = basis.object.merge(text, {
+        refs: refs ? refs.split(/\s+/) : [],
+        value: "notrim" in elAttrs ? text.value : (text.value || "").replace(/^ *(\r\n?|\n)( *$)?|(\r\n?|\n) *$/g, "")
+      });
+      result.push.apply(result, options.process([ text ], template, options));
+    };
+  },
   "5.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
     var templates = {};
     function add(id, template, instances) {
@@ -2441,37 +2654,234 @@ var __resources__ = {
       resolveTmplById: resolveTmplById
     };
   },
-  "1.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
-    var resolveTemplateById = basis.require("./2.js").resolveTemplateById;
-    var HtmlTemplate = basis.require("./7.js").Template;
-    var srcMap = [];
-    var tmplMap = [];
-    function templateWrapper(src) {
-      var index = srcMap.indexOf(src);
-      if (index != -1) return tmplMap[index];
-      var template = new HtmlTemplate(src);
-      srcMap.push(src);
-      tmplMap.push(template);
-      return template;
-    }
-    global.bt = module.exports = basis.object.extend(templateWrapper, {
-      init: function(config) {
-        if (!config) return this;
-        if (config.noConflict) {
-          delete global.bt;
-          return this;
-        }
-      },
-      dispose: function(tmpl) {
-        var template = resolveTemplateById(tmpl.templateId_);
-        if (!template) {
-          basis.dev.warn("Template is not resolved for ", tmpl);
-          return;
-        }
-        template.clearInstance(tmpl);
-      },
-      template: templateWrapper
+  "6.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+    var namespace = "basis.template.theme";
+    var themes = {};
+    var sourceByPath = {};
+    var themeChangeHandlers = [];
+    var currentThemeName = "base";
+    var baseTheme;
+    var Theme = basis.Class(null, {
+      className: namespace + ".Theme",
+      get: getSourceByPath
     });
+    var SourceWrapper = basis.Class(basis.Token, {
+      className: namespace + ".SourceWrapper",
+      path: "",
+      url: "",
+      baseURI: "",
+      init: function(value, path) {
+        this.path = path;
+        basis.Token.prototype.init.call(this, "");
+      },
+      get: function() {
+        return this.value && this.value.bindingBridge ? this.value.bindingBridge.get(this.value) : this.value;
+      },
+      set: function() {
+        var content = getThemeSource(currentThemeName, this.path);
+        if (this.value != content) {
+          if (this.value && this.value.bindingBridge) this.value.bindingBridge.detach(this.value, SourceWrapper.prototype.apply, this);
+          this.value = content;
+          this.url = content && content.url || "";
+          this.baseURI = (typeof content == "object" || typeof content == "function") && "baseURI" in content ? content.baseURI : basis.path.dirname(this.url) + "/";
+          if (this.value && this.value.bindingBridge) this.value.bindingBridge.attach(this.value, SourceWrapper.prototype.apply, this);
+          this.apply();
+        }
+      },
+      destroy: function() {
+        this.url = null;
+        this.baseURI = null;
+        if (this.value && this.value.bindingBridge) this.value.bindingBridge.detach(this.value, this.apply, this);
+        basis.Token.prototype.destroy.call(this);
+      }
+    });
+    function getSourceByPath() {
+      var path = basis.array(arguments).join(".");
+      var source = sourceByPath[path];
+      if (!source) {
+        source = new SourceWrapper("", path);
+        sourceByPath[path] = source;
+      }
+      return source;
+    }
+    function normalize(list) {
+      var used = {};
+      var result = [];
+      for (var i = 0; i < list.length; i++) if (!used[list[i]]) {
+        used[list[i]] = true;
+        result.push(list[i]);
+      }
+      return result;
+    }
+    function extendFallback(themeName, list) {
+      var result = [];
+      result.source = normalize(list).join("/");
+      var used = {
+        base: true
+      };
+      for (var i = 0; i < list.length; i++) {
+        var name = list[i] || "base";
+        if (name == themeName || used[name]) continue;
+        used[name] = true;
+        result.push(name);
+        getTheme(name);
+        list.splice.apply(list, [ i + 1, 0 ].concat(themes[name].fallback));
+      }
+      result.unshift(themeName);
+      if (themeName != "base") result.push("base");
+      result.value = result.join("/");
+      return result;
+    }
+    function getThemeSource(name, path) {
+      var sourceList = themes[name].sourcesList;
+      for (var i = 0, map; map = sourceList[i]; i++) if (map.hasOwnProperty(path)) return map[path];
+      return "";
+    }
+    function themeHasEffect(themeName) {
+      return themes[currentThemeName].fallback.indexOf(themeName) != -1;
+    }
+    function syncCurrentThemePath(path) {
+      getSourceByPath(path).set();
+    }
+    function syncCurrentTheme() {
+      basis.dev.log("re-apply templates");
+      for (var path in sourceByPath) syncCurrentThemePath(path);
+    }
+    function getTheme(name) {
+      if (!name) name = "base";
+      if (themes[name]) return themes[name].theme;
+      if (!/^([a-z0-9\_\-]+)$/.test(name)) throw "Bad name for theme - " + name;
+      var sources = {};
+      var sourceList = [ sources ];
+      var themeInterface = new Theme;
+      themes[name] = {
+        theme: themeInterface,
+        sources: sources,
+        sourcesList: sourceList,
+        fallback: []
+      };
+      var addSource = function(path, source) {
+        if (path in sources == false) {
+          sources[path] = source;
+          if (themeHasEffect(name)) syncCurrentThemePath(path);
+        } else basis.dev.warn("Template path `" + path + "` is already defined for theme `" + name + "` (definition ignored).");
+        return getSourceByPath(path);
+      };
+      basis.object.extend(themeInterface, {
+        name: name,
+        fallback: function(value) {
+          if (themeInterface !== baseTheme && arguments.length > 0) {
+            var newFallback = typeof value == "string" ? value.split("/") : [];
+            var changed = {};
+            newFallback = extendFallback(name, newFallback);
+            if (themes[name].fallback.source != newFallback.source) {
+              themes[name].fallback.source = newFallback.source;
+              basis.dev.log("fallback changed");
+              for (var themeName in themes) {
+                var curFallback = themes[themeName].fallback;
+                var newFallback = extendFallback(themeName, (curFallback.source || "").split("/"));
+                if (newFallback.value != curFallback.value) {
+                  changed[themeName] = true;
+                  themes[themeName].fallback = newFallback;
+                  var sourceList = themes[themeName].sourcesList;
+                  sourceList.length = newFallback.length;
+                  for (var i = 0; i < sourceList.length; i++) sourceList[i] = themes[newFallback[i]].sources;
+                }
+              }
+            }
+            for (var themeName in changed) if (themeHasEffect(themeName)) {
+              syncCurrentTheme();
+              break;
+            }
+          }
+          var result = themes[name].fallback.slice(1);
+          result.source = themes[name].fallback.source;
+          return result;
+        },
+        define: function(what, wherewith) {
+          if (typeof what == "function") what = what();
+          if (typeof what == "string") {
+            if (typeof wherewith == "object") {
+              var namespace = what;
+              var dictionary = wherewith;
+              var result = {};
+              for (var key in dictionary) if (dictionary.hasOwnProperty(key)) result[key] = addSource(namespace + "." + key, dictionary[key]);
+              return result;
+            } else {
+              if (arguments.length == 1) {
+                return getSourceByPath(what);
+              } else {
+                return addSource(what, wherewith);
+              }
+            }
+          } else {
+            if (typeof what == "object") {
+              var dictionary = what;
+              for (var path in dictionary) if (dictionary.hasOwnProperty(path)) addSource(path, dictionary[path]);
+              return themeInterface;
+            } else {
+              basis.dev.warn("Wrong first argument for basis.template.Theme#define");
+            }
+          }
+        },
+        apply: function() {
+          if (name != currentThemeName) {
+            currentThemeName = name;
+            syncCurrentTheme();
+            for (var i = 0, handler; handler = themeChangeHandlers[i]; i++) handler.fn.call(handler.context, name);
+            basis.dev.info("Template theme switched to `" + name + "`");
+          }
+          return themeInterface;
+        },
+        getSource: function(path, withFallback) {
+          return withFallback ? getThemeSource(name, path) : sources[path];
+        },
+        drop: function(path) {
+          if (sources.hasOwnProperty(path)) {
+            delete sources[path];
+            if (themeHasEffect(name)) syncCurrentThemePath(path);
+          }
+        }
+      });
+      themes[name].fallback = extendFallback(name, []);
+      sourceList.push(themes.base.sources);
+      return themeInterface;
+    }
+    function onThemeChange(fn, context, fire) {
+      themeChangeHandlers.push({
+        fn: fn,
+        context: context
+      });
+      if (fire) fn.call(context, currentThemeName);
+    }
+    basis.cleaner.add({
+      destroy: function() {
+        for (var path in sourceByPath) sourceByPath[path].destroy();
+        themes = null;
+        sourceByPath = null;
+      }
+    });
+    baseTheme = getTheme();
+    module.exports = {
+      SourceWrapper: SourceWrapper,
+      Theme: Theme,
+      theme: getTheme,
+      getThemeList: function() {
+        return basis.object.keys(themes);
+      },
+      currentTheme: function() {
+        return themes[currentThemeName].theme;
+      },
+      setTheme: function(name) {
+        return getTheme(name).apply();
+      },
+      onThemeChange: onThemeChange,
+      define: baseTheme.define,
+      get: getSourceByPath,
+      getPathList: function() {
+        return basis.object.keys(sourceByPath);
+      }
+    };
   },
   "7.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
     var namespace = "basis.template.html";
@@ -2915,7 +3325,7 @@ var __resources__ = {
     var extensionJSON = basis.resource.extensions[".json"];
     var hasOwnProperty = Object.prototype.hasOwnProperty;
     var basisTokenPrototypeSet = basis.Token.prototype.set;
-    var buildJsonMap = basis.require("./g.js").buildMap;
+    var buildJsonMap = basis.require("./t.js").buildMap;
     basis.resource.extensions[".l10n"] = processDictionaryContent;
     var patches = function() {
       var config = basis.config.l10n || {};
@@ -3649,7 +4059,7 @@ var __resources__ = {
       Emitter: Emitter
     };
   },
-  "g.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
+  "t.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
     "use strict";
     var _createClass = function() {
       function defineProperties(target, props) {
@@ -3679,7 +4089,7 @@ var __resources__ = {
           enumerable: false,
           configurable: true,
           writable: true,
-          value: function value(target, firstSource) {
+          value: function value(target) {
             "use strict";
             if (target === undefined || target === null) {
               throw new TypeError("Cannot convert first argument to object");
@@ -4380,6 +4790,7 @@ var __resources__ = {
     var TYPE_ATTRIBUTE_EVENT = consts.TYPE_ATTRIBUTE_EVENT;
     var TYPE_TEXT = consts.TYPE_TEXT;
     var TYPE_COMMENT = consts.TYPE_COMMENT;
+    var TYPE_CONTENT = consts.TYPE_CONTENT;
     var TOKEN_TYPE = consts.TOKEN_TYPE;
     var TOKEN_BINDINGS = consts.TOKEN_BINDINGS;
     var TOKEN_REFS = consts.TOKEN_REFS;
@@ -4387,6 +4798,7 @@ var __resources__ = {
     var ATTR_NAME_BY_TYPE = consts.ATTR_NAME_BY_TYPE;
     var ELEMENT_NAME = consts.ELEMENT_NAME;
     var ELEMENT_ATTRIBUTES_AND_CHILDREN = consts.ELEMENT_ATTRIBUTES_AND_CHILDREN;
+    var CONTENT_CHILDREN = consts.CONTENT_CHILDREN;
     var CLASS_BINDING_ENUM = consts.CLASS_BINDING_ENUM;
     var CLASS_BINDING_BOOL = consts.CLASS_BINDING_BOOL;
     var CLASS_BINDING_INVERT = consts.CLASS_BINDING_INVERT;
@@ -4400,6 +4812,27 @@ var __resources__ = {
         return false;
       }
     }();
+    function cleanSpecial(tokens, offset) {
+      var result = [];
+      for (var i = 0; i < tokens.length; i++) {
+        if (i < offset) {
+          result.push(tokens[i]);
+          continue;
+        }
+        var token = tokens[i];
+        switch (token[TOKEN_TYPE]) {
+          case TYPE_ELEMENT:
+            result.push(cleanSpecial(token, ELEMENT_ATTRIBUTES_AND_CHILDREN));
+            break;
+          case TYPE_CONTENT:
+            result.push.apply(result, cleanSpecial(token, CONTENT_CHILDREN).slice(CONTENT_CHILDREN));
+            break;
+          default:
+            result.push(token);
+        }
+      }
+      return result;
+    }
     var buildPathes = function() {
       var PATH_REF_NAME = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
       var pathList;
@@ -4845,6 +5278,7 @@ var __resources__ = {
     var getFunctions = function(tokens, debug, uri, source, noTextBug) {
       var fn = tmplFunctions[uri && basis.path.relative(uri)];
       if (fn) return fn;
+      tokens = cleanSpecial(tokens, 0);
       var paths = buildPathes(tokens, "_", noTextBug);
       var bindings = buildBindings(paths.binding);
       var objectRefs = paths.markedElementList.join("=");
@@ -4906,6 +5340,7 @@ var __resources__ = {
     var TYPE_ATTRIBUTE_EVENT = consts.TYPE_ATTRIBUTE_EVENT;
     var TYPE_TEXT = consts.TYPE_TEXT;
     var TYPE_COMMENT = consts.TYPE_COMMENT;
+    var TYPE_CONTENT = consts.TYPE_CONTENT;
     var TOKEN_TYPE = consts.TOKEN_TYPE;
     var TOKEN_BINDINGS = consts.TOKEN_BINDINGS;
     var TOKEN_REFS = consts.TOKEN_REFS;
@@ -4914,6 +5349,7 @@ var __resources__ = {
     var ATTR_VALUE_INDEX = consts.ATTR_VALUE_INDEX;
     var ELEMENT_NAME = consts.ELEMENT_NAME;
     var ELEMENT_ATTRIBUTES_AND_CHILDREN = consts.ELEMENT_ATTRIBUTES_AND_CHILDREN;
+    var CONTENT_CHILDREN = consts.CONTENT_CHILDREN;
     var TEXT_VALUE = consts.TEXT_VALUE;
     var COMMENT_VALUE = consts.COMMENT_VALUE;
     var CLASS_BINDING_ENUM = consts.CLASS_BINDING_ENUM;
@@ -5036,9 +5472,7 @@ var __resources__ = {
       var namespace = namespaces.getNamespace(name, node);
       if (namespace) node.setAttributeNS(namespace, name, value); else node.setAttribute(name, value);
     }
-    var buildDOM = function(tokens, parent) {
-      var result = parent || document.createDocumentFragment();
-      var offset = parent ? ELEMENT_ATTRIBUTES_AND_CHILDREN : 0;
+    var buildDOM = function(tokens, offset, result) {
       for (var i = offset, token; token = tokens[i]; i++) {
         var tokenType = token[TOKEN_TYPE];
         switch (tokenType) {
@@ -5046,8 +5480,11 @@ var __resources__ = {
             var tagName = token[ELEMENT_NAME];
             var namespace = namespaces.getNamespace(tagName);
             var element = namespace ? document.createElementNS(namespace, tagName) : document.createElement(tagName);
-            buildDOM(token, element);
+            buildDOM(token, ELEMENT_ATTRIBUTES_AND_CHILDREN, element);
             result.appendChild(element);
+            break;
+          case TYPE_CONTENT:
+            buildDOM(token, CONTENT_CHILDREN, result);
             break;
           case TYPE_ATTRIBUTE:
             if (!token[TOKEN_BINDINGS]) setAttribute(result, token[ATTR_NAME], token[ATTR_VALUE] || "");
@@ -5092,10 +5529,13 @@ var __resources__ = {
             break;
         }
       }
-      if (!parent && tokens.length == 1) result = result.removeChild(result.firstChild);
       return result;
     };
-    module.exports = buildDOM;
+    module.exports = function(tokens) {
+      var result = buildDOM(tokens, 0, document.createDocumentFragment());
+      if (result.childNodes.length === 1) result = result.removeChild(result.firstChild);
+      return result;
+    };
   },
   "d.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
     var namespace = "basis.dom.event";
@@ -5155,6 +5595,14 @@ var __resources__ = {
       mousewheel: [ "wheel", "mousewheel", "DOMMouseScroll" ]
     };
     var DEPRECATED = /^(returnValue|keyLocation|layerX|layerY|webkitMovementX|webkitMovementY)$/;
+    var KEYBOARD_EVENTS = [ "keyup", "keydown", "keypress" ];
+    var MOUSE_EVENTS = [ "click", "dblclick", "mousedown", "mouseup", "mouseover", "mousemove", "mouseout", "mouseenter", "mouseleave" ].concat(BROWSER_EVENTS.mousewheel);
+    function isKeyboardEvent(event) {
+      return KEYBOARD_EVENTS.indexOf(event.type) != -1;
+    }
+    function isMouseEvent(event) {
+      return MOUSE_EVENTS.indexOf(event.type) != -1;
+    }
     function browserEvents(eventName) {
       return BROWSER_EVENTS[eventName] || [ eventName ];
     }
@@ -5177,16 +5625,23 @@ var __resources__ = {
           event_: event,
           sender: target,
           target: target,
-          path: event.path ? basis.array(event.path) : getPath(target),
-          key: key(event),
-          charCode: charCode(event),
-          mouseLeft: mouseButton(event, MOUSE_LEFT),
-          mouseMiddle: mouseButton(event, MOUSE_MIDDLE),
-          mouseRight: mouseButton(event, MOUSE_RIGHT),
-          mouseX: mouseX(event),
-          mouseY: mouseY(event),
-          wheelDelta: wheelDelta(event)
+          path: event.path ? basis.array(event.path) : getPath(target)
         });
+        if (isKeyboardEvent(event)) {
+          basis.object.extend(this, {
+            key: key(event),
+            charCode: charCode(event)
+          });
+        } else if (isMouseEvent(event)) {
+          basis.object.extend(this, {
+            mouseLeft: mouseButton(event, MOUSE_LEFT),
+            mouseMiddle: mouseButton(event, MOUSE_MIDDLE),
+            mouseRight: mouseButton(event, MOUSE_RIGHT),
+            mouseX: mouseX(event),
+            mouseY: mouseY(event),
+            wheelDelta: wheelDelta(event)
+          });
+        }
       },
       stopBubble: function() {
         cancelBubble(this.event_);
@@ -5473,7 +5928,7 @@ var __resources__ = {
 
 (function createBasisInstance(context, __basisFilename, __config) {
   "use strict";
-  var VERSION = "1.7.0";
+  var VERSION = "1.8.0";
   var global = Function("return this")();
   var process = global.process;
   var document = global.document;
@@ -5727,6 +6182,7 @@ var __resources__ = {
     var result = function(value) {
       return fn(value);
     };
+    result = devInfoResolver.patchFactory(result);
     result.factory = FACTORY;
     return result;
   }
@@ -5741,7 +6197,7 @@ var __resources__ = {
       } catch (e) {
         global[name] = undefined;
       }
-      fn.apply(this, arguments);
+      return fn.apply(this, arguments);
     };
     return name;
   }
@@ -6547,6 +7003,7 @@ var __resources__ = {
   };
   extend(getResource, {
     resolveURI: resolveResourceFilename,
+    buildCloak: getResource,
     isResource: function(value) {
       return value ? resources[value.url] === value : false;
     },
@@ -7385,14 +7842,10 @@ var __resources__ = {
   var devInfoResolver = function() {
     var getExternalInfo = $undef;
     var fixSourceOffset = $self;
-    var set = function(target, key, info) {};
+    var set = function() {};
     var patch = function(target, key, patch) {
       var oldInfo = get(target, key);
-      if (!oldInfo || typeof oldInfo != "object") {
-        set(target, key, patch);
-        return;
-      }
-      extend(oldInfo, patch);
+      if (oldInfo) extend(oldInfo, patch); else set(target, key, patch);
     };
     var get = function(target, key) {
       var externalInfo = getExternalInfo(target);
@@ -7401,6 +7854,13 @@ var __resources__ = {
         var info = merge(externalInfo, ownInfo);
         return key ? info[key] : info;
       }
+    };
+    var patchFactory = function(factory) {
+      return function locationAnchor(target) {
+        var value = factory(target);
+        if (value) set(value, "loc", get(locationAnchor, "loc"));
+        return value;
+      };
     };
     try {
       (new WeakMap).get(1);
@@ -7424,6 +7884,7 @@ var __resources__ = {
       fixSourceOffset: fixSourceOffset,
       setInfo: set,
       patchInfo: patch,
+      patchFactory: patchFactory,
       getInfo: get
     };
   }();
