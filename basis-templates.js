@@ -427,6 +427,7 @@ var __resources__ = {
     var refUtils = basis.require("./h.js");
     var styleUtils = basis.require("./j.js");
     var attrUtils = basis.require("./k.js");
+    var walk = basis.require("./i.js").walk;
     var TYPE_ELEMENT = consts.TYPE_ELEMENT;
     var TYPE_ATTRIBUTE = consts.TYPE_ATTRIBUTE;
     var TYPE_ATTRIBUTE_CLASS = consts.TYPE_ATTRIBUTE_CLASS;
@@ -435,6 +436,7 @@ var __resources__ = {
     var TYPE_CONTENT = consts.TYPE_CONTENT;
     var TOKEN_TYPE = consts.TOKEN_TYPE;
     var TOKEN_BINDINGS = consts.TOKEN_BINDINGS;
+    var TOKEN_REFS = consts.TOKEN_REFS;
     var ATTR_VALUE_INDEX = consts.ATTR_VALUE_INDEX;
     var ELEMENT_ATTRIBUTES_AND_CHILDREN = consts.ELEMENT_ATTRIBUTES_AND_CHILDREN;
     var TEXT_VALUE = consts.TEXT_VALUE;
@@ -528,21 +530,20 @@ var __resources__ = {
         }
         return value;
       }
-      function applyDefines(tokens, template, options, stIdx) {
-        for (var i = stIdx || 0, token; token = tokens[i]; i++) {
-          var tokenType = token[TOKEN_TYPE];
-          var bindings = token[TOKEN_BINDINGS];
-          switch (tokenType) {
+      function applyDefines(ast, template, options) {
+        walk(ast, function(nodeType, node) {
+          var bindings = node[TOKEN_BINDINGS];
+          switch (nodeType) {
             case TYPE_ELEMENT:
-              applyDefines(token, template, options, ELEMENT_ATTRIBUTES_AND_CHILDREN);
+              applyDefines(node, template, options, ELEMENT_ATTRIBUTES_AND_CHILDREN);
               break;
             case TYPE_TEXT:
               if (bindings) {
                 var binding = absl10n(bindings, options.dictURI, template.l10n);
-                token[TOKEN_BINDINGS] = binding || 0;
+                node[TOKEN_BINDINGS] = binding || 0;
                 if (binding === false) {
-                  utils.addTemplateWarn(template, options, "Dictionary for l10n binding on text node can't be resolved: {" + bindings + "}", token.loc);
-                  token[TEXT_VALUE] = "{" + bindings + "}";
+                  utils.addTemplateWarn(template, options, "Dictionary for l10n binding on text node can't be resolved: {" + bindings + "}", node.loc);
+                  node[TEXT_VALUE] = "{" + bindings + "}";
                 }
               }
               break;
@@ -552,13 +553,13 @@ var __resources__ = {
                 for (var j = array.length - 1; j >= 0; j--) {
                   var binding = absl10n(array[j], options.dictURI, template.l10n);
                   if (binding === false) {
-                    utils.addTemplateWarn(template, options, "Dictionary for l10n binding on attribute can't be resolved: {" + array[j] + "}", token.loc);
+                    utils.addTemplateWarn(template, options, "Dictionary for l10n binding on attribute can't be resolved: {" + array[j] + "}", node.loc);
                     var expr = bindings[1];
                     for (var k = 0; k < expr.length; k++) if (typeof expr[k] == "number") {
                       if (expr[k] == j) expr[k] = "{" + array[j] + "}"; else if (expr[k] > j) expr[k] = expr[k] - 1;
                     }
                     array.splice(j, 1);
-                    if (!array.length) token[TOKEN_BINDINGS] = 0;
+                    if (!array.length) node[TOKEN_BINDINGS] = 0;
                   } else array[j] = binding;
                 }
               }
@@ -582,29 +583,30 @@ var __resources__ = {
                   }
                 }
                 if (options.optimizeSize) {
-                  var valueIdx = ATTR_VALUE_INDEX[tokenType];
-                  if (!token[valueIdx]) token.length = valueIdx;
+                  var valueIdx = ATTR_VALUE_INDEX[nodeType];
+                  if (!node[valueIdx]) node.length = valueIdx;
                 }
               }
               break;
           }
-        }
+        });
       }
-      function findNonSpecialToken(tokens) {
-        function find(tokens, offset) {
-          for (var i = offset; i < tokens.length; i++) {
-            var token = tokens[i];
-            var type = token[TOKEN_TYPE];
+      function findElementCandidateNode(ast) {
+        function find(node, offset) {
+          for (var i = offset; i < node.length; i++) {
+            var child = node[i];
+            var type = child[TOKEN_TYPE];
             var result;
-            if (type == TYPE_ELEMENT || type == TYPE_TEXT || type == TYPE_COMMENT) return token;
+            if (type == TYPE_ELEMENT || type == TYPE_TEXT) return child;
+            if (type == TYPE_COMMENT) if (child[TOKEN_REFS] || child[TOKEN_BINDINGS]) return child;
             if (type == TYPE_CONTENT) {
-              result = find(token, CONTENT_CHILDREN);
+              result = find(child, CONTENT_CHILDREN);
               if (result) return result;
             }
           }
           return null;
         }
-        return find(tokens, 0);
+        return find(ast, 0);
       }
       return function makeDeclaration(source, baseURI, options, sourceUrl, sourceOrigin) {
         var warns = [];
@@ -657,10 +659,10 @@ var __resources__ = {
         includeStack.push(sourceOrigin !== true && sourceOrigin || {});
         result.tokens = process(source, result, options);
         includeStack.pop();
-        if (source_) result.tokens.source_ = source_;
+        result.tokens.source_ = (source_ !== undefined ? source_ : source && source.source_) || "";
         result.tokens.push([ TYPE_CONTENT, 0 ]);
         var tokenRefMap = normalizeRefs(result.tokens);
-        var elementToken = findNonSpecialToken(result.tokens);
+        var elementCandidateNode = findElementCandidateNode(result.tokens);
         var contentNodeRef = tokenRefMap[":content"];
         if (contentNodeRef.node[CONTENT_PRIORITY] > 1) contentNodeRef.node[CONTENT_PRIORITY] = 1;
         contentNodeRef.overrided.forEach(function(overridedContentNodeRef) {
@@ -674,11 +676,11 @@ var __resources__ = {
             node: overridedContentNodeRef.node
           });
         });
-        if (!elementToken) {
-          elementToken = [ TYPE_TEXT, 0, 0, "" ];
-          result.tokens.unshift(elementToken);
+        if (!elementCandidateNode) {
+          elementCandidateNode = [ TYPE_TEXT, 0, 0 ];
+          result.tokens.unshift(elementCandidateNode);
         }
-        if (!tokenRefMap.element) addTokenRef(elementToken, "element");
+        if (!tokenRefMap.element) addTokenRef(elementCandidateNode, "element");
         applyDefines(result.tokens, result, options);
         if (/^[^a-z_-]/i.test(result.isolate)) basis.dev.error("basis.template: isolation prefix `" + result.isolate + "` should not starts with symbol other than letter, underscore or dash, otherwise it leads to incorrect css class names and broken styles");
         if (includeStack.length == 0) {
@@ -796,7 +798,7 @@ var __resources__ = {
     module.exports = {
       VERSION: 3,
       makeDeclaration: makeDeclaration,
-      walk: basis.require("./i.js").walk,
+      walk: walk,
       getDeclFromSource: getDeclFromSource,
       setIsolatePrefixGenerator: function(fn) {
         genIsolateMarker = fn;
@@ -1398,7 +1400,7 @@ var __resources__ = {
     }
     function bindingList(token) {
       var refs = token.refs;
-      return refs && refs.length == 1 ? refs[0] : 0;
+      return refs && refs.length ? refs[0] : 0;
     }
     function getTokenAttrValues(token) {
       var result = {};
@@ -1465,7 +1467,7 @@ var __resources__ = {
     function addTokenRef(token, refName) {
       if (!token[TOKEN_REFS]) token[TOKEN_REFS] = [];
       arrayAdd(token[TOKEN_REFS], refName);
-      if (refName != "element") token[TOKEN_BINDINGS] = token[TOKEN_REFS].length == 1 ? refName : 0;
+      if (refName != "element" && !token[TOKEN_BINDINGS]) token[TOKEN_BINDINGS] = token[TOKEN_REFS].length == 1 ? refName : 0;
     }
     function removeTokenRef(token, refName) {
       var idx = token[TOKEN_REFS].indexOf(refName);
@@ -1675,9 +1677,9 @@ var __resources__ = {
   "k.js": function(exports, module, basis, global, __filename, __dirname, require, resource, asset) {
     var arrayAdd = basis.array.add;
     var arrayRemove = basis.array.remove;
+    var addTokenRef = basis.require("./h.js").addTokenRef;
     var consts = basis.require("./3.js");
     var utils = basis.require("./g.js");
-    var addTokenRef = utils.addTokenRef;
     var getTokenName = utils.getTokenName;
     var getTokenAttrValues = utils.getTokenAttrValues;
     var getTokenAttrs = utils.getTokenAttrs;
@@ -5928,7 +5930,7 @@ var __resources__ = {
 
 (function createBasisInstance(context, __basisFilename, __config) {
   "use strict";
-  var VERSION = "1.8.0";
+  var VERSION = "1.8.1";
   var global = Function("return this")();
   var process = global.process;
   var document = global.document;
