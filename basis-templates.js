@@ -303,6 +303,7 @@ var __resources__ = {
       ATTR_NAME_BY_TYPE: consts.ATTR_NAME_BY_TYPE,
       CLASS_BINDING_ENUM: consts.CLASS_BINDING_ENUM,
       CLASS_BINDING_BOOL: consts.CLASS_BINDING_BOOL,
+      CLASS_BINDING_INVERT: consts.CLASS_BINDING_INVERT,
       ELEMENT_NAME: consts.ELEMENT_NAME,
       ELEMENT_ATTRS: consts.ELEMENT_ATTRIBUTES_AND_CHILDREN,
       ELEMENT_ATTRIBUTES_AND_CHILDREN: consts.ELEMENT_ATTRIBUTES_AND_CHILDREN,
@@ -5930,7 +5931,7 @@ var __resources__ = {
 
 (function createBasisInstance(context, __basisFilename, __config) {
   "use strict";
-  var VERSION = "1.8.1";
+  var VERSION = "1.8.2";
   var global = Function("return this")();
   var process = global.process;
   var document = global.document;
