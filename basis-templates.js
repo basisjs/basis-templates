@@ -610,8 +610,7 @@ var __resources__ = {
         return find(ast, 0);
       }
       return function makeDeclaration(source, baseURI, options, sourceUrl, sourceOrigin) {
-        var warns = [];
-        var source_;
+        var source_ = source;
         options = basis.object.slice(options);
         options.Template = Template;
         options.genIsolateMarker = genIsolateMarker;
@@ -643,24 +642,22 @@ var __resources__ = {
           styleNSPrefix: {},
           resources: [],
           l10n: [],
-          warns: warns
+          warns: []
         };
         result.removals = [];
         result.states = {};
-        if (!Array.isArray(source)) {
-          source_ = source;
-          source = tokenize(String(source), {
-            loc: !!options.loc,
-            range: !!options.range
-          });
-        }
+        if (!source) source = "";
+        if (!Array.isArray(source)) source = tokenize(String(source || ""), {
+          loc: !!options.loc,
+          range: !!options.range
+        });
         if (source.warns) source.warns.forEach(function(warn) {
           utils.addTemplateWarn(result, options, warn[0], warn[1].loc);
         });
         includeStack.push(sourceOrigin !== true && sourceOrigin || {});
         result.tokens = process(source, result, options);
         includeStack.pop();
-        result.tokens.source_ = (source_ !== undefined ? source_ : source && source.source_) || "";
+        result.tokens.source_ = source_ !== undefined ? source_ : source && source.source_;
         result.tokens.push([ TYPE_CONTENT, 0 ]);
         var tokenRefMap = normalizeRefs(result.tokens);
         var elementCandidateNode = findElementCandidateNode(result.tokens);
@@ -686,11 +683,14 @@ var __resources__ = {
         if (/^[^a-z_-]/i.test(result.isolate)) basis.dev.error("basis.template: isolation prefix `" + result.isolate + "` should not starts with symbol other than letter, underscore or dash, otherwise it leads to incorrect css class names and broken styles");
         if (includeStack.length == 0) {
           isolateTokens(result.tokens, result.isolate || "", result, options);
-          result.warns = [];
-          if (result.removals) result.removals.forEach(function(item) {
-            isolateTokens([ item.token ], result.isolate || "", result, options);
-          });
-          result.warns = warns;
+          if (result.removals) {
+            var warns = result.warns;
+            result.warns = [];
+            result.removals.forEach(function(item) {
+              isolateTokens([ item.token ], result.isolate || "", result, options);
+            });
+            result.warns = warns;
+          }
           for (var key in result.styleNSPrefix) {
             var styleNSPrefix = result.styleNSPrefix[key];
             if (!styleNSPrefix.used) utils.addTemplateWarn(result, options, "Unused namespace: " + styleNSPrefix.name, styleNSPrefix.loc);
@@ -763,7 +763,7 @@ var __resources__ = {
           var define = options.defines[key];
           if (!define.used) utils.addTemplateWarn(result, options, "Unused define: " + key, define.loc);
         }
-        if (!warns.length) result.warns = false;
+        if (!result.warns.length) result.warns = false;
         return result;
       };
     }();
@@ -787,9 +787,9 @@ var __resources__ = {
           tokens: result
         };
       } else {
-        if (typeof result != "object" || !Array.isArray(result.tokens)) result = String(result);
+        if (result && (typeof result != "object" || !Array.isArray(result.tokens))) result = String(result);
       }
-      if (typeof result == "string") result = makeDeclaration(result, baseURI, options, sourceUrl, source);
+      if (!result || typeof result == "string") result = makeDeclaration(result, baseURI, options, sourceUrl, source);
       return result;
     }
     basis.resource("./2.js").ready(function(exports) {
@@ -5931,7 +5931,7 @@ var __resources__ = {
 
 (function createBasisInstance(context, __basisFilename, __config) {
   "use strict";
-  var VERSION = "1.8.2";
+  var VERSION = "1.8.3";
   var global = Function("return this")();
   var process = global.process;
   var document = global.document;
