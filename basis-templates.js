@@ -4313,14 +4313,14 @@ var __resources__ = {
           key: "_testKeyword",
           value: function _testKeyword() {
             var _this = this;
-            var matched = Object.keys(keywordsTokens).find(function(name) {
+            var matched = Object.keys(keywordsTokens).filter(function(name) {
               return name === _this.source.substr(_this.index, name.length);
             });
-            if (matched) {
+            if (matched.length) {
               var _length = matched.length;
               this.index += _length;
               this.column += _length;
-              this.currentToken = keywordsTokens[matched];
+              this.currentToken = keywordsTokens[matched[0]];
               return true;
             } else {
               return false;
@@ -6026,7 +6026,7 @@ var __resources__ = {
 
 (function createBasisInstance(context, __basisFilename, __config) {
   "use strict";
-  var VERSION = "1.9.2";
+  var VERSION = "1.10.0";
   var global = Function("return this")();
   var process = global.process;
   var document = global.document;
@@ -6551,7 +6551,7 @@ var __resources__ = {
           path.unshift(args[i]);
           absoluteFound = ABSOLUTE_RX.test(args[i]);
         }
-        if (!absoluteFound) path.unshift(baseURI == "/" ? "" : baseURI);
+        if (!absoluteFound) path.unshift(baseURI == "/" ? "" : baseURI); else if (path.length && path[0] == "/") path[0] = "";
         return utils.normalize(path.join("/"));
       },
       relative: function(from, to) {
@@ -6611,6 +6611,10 @@ var __resources__ = {
             }
             break;
           }
+        }
+        if (!basisFilename) {
+          basisFilename = pathUtils.normalize(scripts[0].src);
+          consoleMethods.warn("basis-config: no `basis-config` marker on any script tag is found. All paths will be resolved relative to `src` from the first `script` tag.");
         }
       }
     }
@@ -6945,6 +6949,7 @@ var __resources__ = {
   var resourceContentCache = {};
   var resourcePatch = {};
   var virtualResourceSeed = 1;
+  var resourceSubscribers = [];
   var resourceResolvingStack = [];
   var requires;
   (function() {
@@ -7025,6 +7030,12 @@ var __resources__ = {
       resolved = true;
       applyResourcePatches(resource);
       resource.apply();
+      if (!isVirtual) resourceSubscribers.forEach(function(fn) {
+        fn({
+          type: "resolve",
+          resource: resource
+        });
+      });
       resourceResolvingStack.pop();
       return content;
     };
@@ -7086,6 +7097,12 @@ var __resources__ = {
     }));
     resources[resourceUrl] = resource;
     resourceRequestCache[resourceUrl] = resource;
+    if (!isVirtual) resourceSubscribers.forEach(function(fn) {
+      fn({
+        type: "create",
+        resource: resource
+      });
+    });
     return resource;
   };
   var getResource = function(url, baseURI) {
@@ -7121,6 +7138,9 @@ var __resources__ = {
       return cache ? keys(resourceContentCache) : keys(resources).filter(function(filename) {
         return !resources[filename].virtual;
       });
+    },
+    subscribe: function(fn) {
+      resourceSubscribers.push(fn);
     },
     virtual: function(type, content, ownerUrl) {
       return createResource((ownerUrl ? ownerUrl + ":" : pathUtils.normalize(pathUtils.baseURI == "/" ? "" : pathUtils.baseURI) + "/") + "virtual-resource" + virtualResourceSeed++ + "." + type, content);
