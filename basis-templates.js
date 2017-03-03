@@ -6026,7 +6026,7 @@ var __resources__ = {
 
 (function createBasisInstance(context, __basisFilename, __config) {
   "use strict";
-  var VERSION = "1.10.0";
+  var VERSION = "1.10.1";
   var global = Function("return this")();
   var process = global.process;
   var document = global.document;
@@ -7892,6 +7892,7 @@ var __resources__ = {
       }
     });
   }();
+  var svgStorageElement = null;
   var SvgResource = function() {
     var baseEl = document && document.createElement("base");
     function setBase(baseURI) {
@@ -7906,10 +7907,9 @@ var __resources__ = {
       setBase(this.baseURI);
       if (!this.element) {
         this.element = document.createElement("span");
-        this.element.style.cssText = "display:none";
         this.element.setAttribute("src", this.url);
       }
-      documentInterface.body.add(this.element);
+      svgStorageElement.appendChild(this.element);
       this.syncSvgText();
       restoreBase();
     }
@@ -7941,17 +7941,25 @@ var __resources__ = {
         this.element.innerHTML = this.svgText;
       },
       startUse: function() {
-        if (!this.inUse) documentInterface.body.ready(injectSvg, this);
+        if (!this.inUse) {
+          if (!svgStorageElement) {
+            svgStorageElement = document.createElement("span");
+            svgStorageElement.setAttribute("title", "svg symbol storage");
+            svgStorageElement.style.cssText = "position:absolute!important;width:0;height:0;overflow:hidden";
+            documentInterface.body.add(svgStorageElement);
+          }
+          documentInterface.body.ready(injectSvg, this);
+        }
         this.inUse += 1;
       },
       stopUse: function() {
         if (this.inUse) {
           this.inUse -= 1;
-          if (!this.inUse && this.element) documentInterface.remove(this.element);
+          if (!this.inUse && this.element) svgStorageElement.removeChild(this.element);
         }
       },
       destroy: function() {
-        if (this.element) documentInterface.remove(this.element);
+        if (this.element) svgStorageElement.removeChild(this.element);
         this.element = null;
         this.svgText = null;
       }
