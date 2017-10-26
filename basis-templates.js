@@ -926,11 +926,11 @@ var __resources__ = {
     var ATTR_TYPE_BY_NAME = consts.ATTR_TYPE_BY_NAME;
     var SYNTAX_ERROR = "Invalid or unsupported syntax";
     var TEXT = /((?:.|[\r\n])*?)(\{(?:l10n:([a-zA-Z_][a-zA-Z0-9_\-]*(?:\.[a-zA-Z_][a-zA-Z0-9_\-]*)*(?:\.\{[a-zA-Z_][a-zA-Z0-9_\-]*\})?)\})?|<(\/|!--(\s*\{)?)?|$)/g;
-    var TAG_NAME = /([a-z_][a-z0-9\-_]*)(:|\{|\s*(\/?>)?)/gi;
-    var ATTRIBUTE_NAME_OR_END = /([a-z_][a-z0-9_\-]*)(:|\{|=|\s*)|(\/?>)/gi;
+    var TAG_NAME = /([a-z_][a-z0-9\-_]*)(:|\{|\s*(\/?>)?)/ig;
+    var ATTRIBUTE_NAME_OR_END = /([a-z_][a-z0-9_\-]*)(:|\{|=|\s*)|(\/?>)/ig;
     var COMMENT = /(.|[\r\n])*?-->/g;
-    var CLOSE_TAG = /([a-z_][a-z0-9_\-]*(?::[a-z_][a-z0-9_\-]*)?)>/gi;
-    var REFERENCE = /([a-z_][a-z0-9_]*)(\||\}\s*)/gi;
+    var CLOSE_TAG = /([a-z_][a-z0-9_\-]*(?::[a-z_][a-z0-9_\-]*)?)>/ig;
+    var REFERENCE = /([a-z_][a-z0-9_]*)(\||\}\s*)/ig;
     var ATTRIBUTE_VALUE = /"((?:(\\")|[^"])*?)"\s*/g;
     var QUOTE_UNESCAPE = /\\"/g;
     var BREAK_TAG_PARSE = /^/g;
@@ -6948,7 +6948,7 @@ var __resources__ = {
 ;
 (function createBasisInstance(context, __basisFilename, __config) {
   "use strict";
-  var VERSION = "1.11.0";
+  var VERSION = "1.11.1";
   var global = Function("return this")();
   var process = global.process;
   var document = global.document;
@@ -8014,7 +8014,14 @@ var __resources__ = {
         }
       } else {
         try {
-          resourceContent = typeof process.basisjsReadFile == "function" ? process.basisjsReadFile(url) : require("fs").readFileSync(url, "utf-8");
+          if (typeof process.basisjsReadFile == "function")
+            resourceContent = process.basisjsReadFile(url);
+          else {
+            if (true)
+              resourceContent = require("fs").readFileSync(url, "utf-8");
+            else
+              throw new Error("fs not supported for packed basis.js");
+          }
         } catch (e) {
           consoleMethods.error("basis.resource: Unable to load " + url, e);
         }
